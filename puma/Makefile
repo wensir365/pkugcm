@@ -1,4 +1,5 @@
-# Makefile for PUMA with no graphics
+# Makefile for PUMA without GUI and MPI
+# Xinyu Wen, Peking Univ, Mar/23/2017
 
 F90=gfortran
 
@@ -18,9 +19,9 @@ puma.x:	$(OBJ)
 
 puma.o:		puma.f90
 ${FFTMOD}.o:	${FFTMOD}.f90
-${GUIMOD}.o:	${GUIMOD}.f90 puma.o
+${GUIMOD}.o:	${GUIMOD}.f90
 ${MPIMOD}.o:	${MPIMOD}.f90 puma.o
-legsym.o:	legsym.f90 puma.o
+legsym.o:	legsym.f90
 restartmod.o:	restartmod.f90
 gaussmod.o:	gaussmod.f90
 
