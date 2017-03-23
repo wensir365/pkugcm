@@ -1,4 +1,5 @@
-### Make PUMA run on Mar 23, 2017
+## 2017-Mar-23: Make PUMA running
 
-让PUMA跑了起来。但是只用1个CPU。
-对puma.f90中的nresources部分做了修改，貌似是从pumax.c中返回系统时间用的。
+Successfully make PUMA running on 1CPU, with fake MPI and GUI interface (stub). 
+I changed "nresources" line in puma.f90, which might be related to retrieving system time used in pumax.c.
+They are marked with "XW".
