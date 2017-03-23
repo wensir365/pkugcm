@@ -1,0 +1,3 @@
+rm -f puma_diag  puma_output  puma_sp_init  puma_status
+echo "puma_diag  puma_output  puma_sp_init  puma_status ...... were removed!"
+echo "you may start a new run now!"
