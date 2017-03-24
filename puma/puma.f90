@@ -168,7 +168,7 @@ integer :: ncoeff   =  0 ! number of modes to print
 integer :: ndel     =  6 ! ndel
 integer :: ndiag    = 12 ! write diagnostics interval
 integer :: newsr    =  0 ! 1: recalculate sr1 and sr2 after restart
-integer :: ngui     =  0 ! activate Graphical User Interface
+integer :: ngui     =  0 ! activate Graphical User Interface	!XW(Mar/25/2017) 0=off
 integer :: nkits    =  3 ! number of initial timesteps
 integer :: nlevt    =  9 ! tropospheric levels (set_vertical_grid)
 integer :: noutput  =  1 ! global switch for output on (1) or off (0)
@@ -402,15 +402,16 @@ real    :: syncsecs =  0.0 ! Coupling time [sec]
 ! * GUI (Graphical User Interface for X11) *
 ! ******************************************
 
-parameter (NPARCS = 10)         ! Number of GUI parameters
-integer :: nguidbg   =  0       ! Flag for GUI debug output
-integer :: nshutdown =  0       ! Flag for shutdown request
-integer :: ndatim(6) = -1       ! Date & time array
-real(kind=4) :: parc(NPARCS)    ! Values of GUI parameters
-real(kind=4) :: crap(NPARCS)    ! Backup of parc(NPARCS)
-logical :: ldtep   = .FALSE.    ! DTEP changed by GUI
-logical :: ldtns   = .FALSE.    ! DTNS changed by GUI
-character(len=32) :: yplanet = "Earth"
+!XW(Mar/25/2017) to remove GUI:
+!parameter (NPARCS = 10)         ! Number of GUI parameters
+!integer :: nguidbg   =  0       ! Flag for GUI debug output	!XW(Mar/25/2017) 0=off
+!integer :: nshutdown =  0       ! Flag for shutdown request
+!integer :: ndatim(6) = -1       ! Date & time array
+!real(kind=4) :: parc(NPARCS)    ! Values of GUI parameters
+!real(kind=4) :: crap(NPARCS)    ! Backup of parc(NPARCS)
+!logical :: ldtep   = .FALSE.    ! DTEP changed by GUI
+!logical :: ldtns   = .FALSE.    ! DTNS changed by GUI
+!character(len=32) :: yplanet = "Earth"
 
 ! ***************
 ! * Random seed *
@@ -541,7 +542,7 @@ call allocate_arrays
 call prolog
 call master
 call epilog
-call guistop
+!XW(Mar/25/2017) to remove GUI: call guistop
 call mpstop
 
 print *, "STOP Normally!!!"
@@ -723,7 +724,7 @@ if (mypid == NROOT) then
    call initpm
    call initsi
    call altlat(csq,NLAT) ! csq -> alternating grid
-   if (ngui > 0) call guistart
+   !XW(Mar/25/2017) to remove GUI: if (ngui > 0) call guistart
    if (nrun == 0 .and. nstop  > 0) nrun = nstop-nstep
    if (nrun == 0) nrun = ntspd * (nyears * 360 + nmonths * 30)
    call initrandom     ! set random seed
@@ -733,7 +734,7 @@ call mpbci(nruido)
 call initruido      ! allocate ruido arrays
 
 
-if (nshutdown > 0) return ! If something went wrong in the init routines
+!XW(Mar/25/2017) to remove GUI: if (nshutdown > 0) return ! If something went wrong in the init routines
 
 ! ***********************
 ! * broadcast & scatter *
@@ -924,7 +925,7 @@ end subroutine prolog
 subroutine master
 use pumamod
 
-if (nshutdown > 0) return ! if something went wrong in prolog already
+!XW(Mar/25/2017) to remove GUI: if (nshutdown > 0) return ! if something went wrong in prolog already
 
 ! ***************************
 ! * short initial timesteps *
@@ -948,7 +949,7 @@ nstep1 = nstep ! remember 1.st timestep
 
 do jstep = 1 , nrun
    nstep = nstep + 1
-   call ntomin(nstep,ndatim(5),ndatim(4),ndatim(3),ndatim(2),ndatim(1))
+   !XW(Mar/25/2017) to remove GUI: call ntomin(nstep,ndatim(5),ndatim(4),ndatim(3),ndatim(2),ndatim(1))
 
 !  ************************************************************
 !  * calculation of non-linear quantities in grid point space *
@@ -961,7 +962,7 @@ do jstep = 1 , nrun
       if (mod(nstep,ndiag ) == 0 .or. ngui > 0) call diag
       if (ncu > 0) call checkunit
    endif
-   if (ngui > 0) call guistep_puma
+   !XW(Mar/25/2017) to remove GUI: if (ngui > 0) call guistep_puma
 
 !  ******************************
 !  * adiabatic part of timestep *
@@ -969,7 +970,7 @@ do jstep = 1 , nrun
 
    call spectral
    if (mod(nstep,nafter) == 0 .and. noutput > 0) call outgp
-   if (nshutdown > 0) return
+   !XW(Mar/25/2017) to remove GUI: if (nshutdown > 0) return
 enddo
 return
 end subroutine master
@@ -2679,7 +2680,7 @@ end subroutine master
       ziso(3) = ztmptot
       ziso(4) = ztotp
       ziso(5) = sz(3,2)
-      call guiput("SCALAR" // char(0) ,ziso,idim,1,1)
+      !XW(Mar/25/2017) to remove GUI: call guiput("SCALAR" // char(0) ,ziso,idim,1,1)
 
 !     restore sz to absolute vorticity
 
@@ -3192,12 +3193,13 @@ end subroutine master
          call fc2gp(gp,NLON,NLPP)
          zgpp(:) = exp(gp)                ! LnPs -> Ps
          call mpgagp(zgp,zgpp,1)          ! zgp = Ps (full grid)
-         if (ngui > 0) then
-            call guips(zgp,psmean)        
-            call guigv("GU" // char(0),gu)
-            call guigv("GV" // char(0),gv)
-            call guigt(gt)
-         endif
+	 !XW(Mar/25/2017) to remove GUI:
+         !if (ngui > 0) then
+         !   call guips(zgp,psmean)        
+         !   call guigv("GU" // char(0),gu)
+         !   call guigv("GV" // char(0),gv)
+         !   call guigt(gt)
+         !endif
          zgpp(:) =  zgpp(:) - 1.0         ! Mean(LnPs) = 0  <-> Mean(Ps) = 1
          call gp2fc(zgpp,NLON,NLPP)
          call fc2sp(zgpp,span)
@@ -3210,16 +3212,17 @@ end subroutine master
             call altcs(csu)
             call altcs(csv)
             call altcs(cst)
-            if (ngui > 0) then
-               zcs(:,:) = csu(:,:)
-               call guiput("CSU"  // char(0) ,zcs ,NLAT,NLEV,1)
-               zcs(:,:) = csv(:,:)
-               call guiput("CSV"  // char(0) ,zcs ,NLAT,NLEV,1)
-               zcs(:,:) = cst(:,:)
-               call guiput("CST"  // char(0) ,zcs ,NLAT,NLEV,1)
-               zsp(:) = span(1:NRSP)
-               call guiput("SPAN" // char(0) ,zsp ,NCSP,-NTP1,1)
-            endif
+	    !XW(Mar/25/2017) to remove GUI:
+            !if (ngui > 0) then
+            !   zcs(:,:) = csu(:,:)
+            !   call guiput("CSU"  // char(0) ,zcs ,NLAT,NLEV,1)
+            !   zcs(:,:) = csv(:,:)
+            !   call guiput("CSV"  // char(0) ,zcs ,NLAT,NLEV,1)
+            !   zcs(:,:) = cst(:,:)
+            !   call guiput("CST"  // char(0) ,zcs ,NLAT,NLEV,1)
+            !   zsp(:) = span(1:NRSP)
+            !   call guiput("SPAN" // char(0) ,zsp ,NCSP,-NTP1,1)
+            !endif
          endif
       endif
       return
