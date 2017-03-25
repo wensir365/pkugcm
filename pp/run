@@ -1,0 +1,2 @@
+./burn7.x ../puma_output puma_output_srf.nc < pp_srf.nl > logsrf
+./burn7.x ../puma_output puma_output_lev.nc < pp_lev.nl > loglev
