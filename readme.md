@@ -4,7 +4,7 @@
 
 Add mpimod.f90 and make minor modification on makefile, so that I can deliver MPI runs using 4 CPUs. Seems the excutable with MPI still can be run with 1 single CPU, like this: "./puma_mpi.x 32 10". Normally, the MPI run can be done by "mpiexec -np 4 puma_mpi.x 32 10".
 
-The running speed was tested on my Intel i5 CPU with 4 processors, with gfortran as the compilor and -O3 as the optimal argument.
+The running speed, under the unif of "simulate model years per day",  was tested on my Intel i5 CPU with 4 processors, with gfortran as the compilor and -O3 as the optimal argument.
 
 | `gfortran -O3` |   T21 |  T42 |
 |:---------------|------:|-----:|
