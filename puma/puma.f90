@@ -1057,23 +1057,23 @@ end subroutine master
             zypd = (24.0 * 3600.0 / zspy)                         ! siy / day
             write(nud,'(/,"****************************************")')
             if (zut > 0.0) &
-            write(nud,  '("* User   time         : ", f10.3," sec *")') zut
+            write(nud,  '("* User   time         : ", f10.3," sec * N/A")') zut
             if (zst > 0.0) &
-            write(nud,  '("* System time         : ", f10.3," sec *")') zst
+            write(nud,  '("* System time         : ", f10.3," sec * N/A")') zst
             if (zut + zst > 0.0) tmrun = zut + zst
             write(nud,  '("* Total CPU time      : ", f10.3," sec *")') tmrun
             if (imem > 0) &
-            write(nud,  '("* Memory usage        : ", f10.3," MB  *")') imem * 0.000001
+            write(nud,  '("* Memory usage        : ", f10.3," MB  * N/A")') imem * 0.000001
             if (ipr > 0 .and. ipr < 1000000) &
-            write(nud,  '("* Page reclaims       : ", i6," pages   *")') ipr
+            write(nud,  '("* Page reclaims       : ", i6," pages   * N/A")') ipr
             if (ipf > 0 .and. ipf < 1000000) &
-            write(nud,  '("* Page faults         : ", i6," pages   *")') ipf
+            write(nud,  '("* Page faults         : ", i6," pages   * N/A")') ipf
             if (isw > 0 .and. isw < 1000000) &
-            write(nud,  '("* Page swaps          : ", i6," pages   *")') isw
+            write(nud,  '("* Page swaps          : ", i6," pages   * N/A")') isw
             if (idr > 0 .and. idr < 1000000) &
-            write(nud,  '("* Disk read           : ", i6," blocks  *")') idr
+            write(nud,  '("* Disk read           : ", i6," blocks  * N/A")') idr
             if (idw > 0 .and. idw < 1000000) &
-            write(nud,  '("* Disk write          : ", i6," blocks  *")') idw
+            write(nud,  '("* Disk write          : ", i6," blocks  * N/A")') idw
             write(nud,'("****************************************")')
             if (zspy < 600.0) then
                write(nud,'("* Seconds per sim year: ",i6,9x,"*")') nint(zspy)
@@ -1082,7 +1082,7 @@ end subroutine master
             else
                write(nud,'("* Days per sim year:    ",i6,5x,"*")') nint(zspy/sol_day)
             endif
-            write(nud,'("* Sim years per day   :",i7,9x,"*")') nint(zypd)
+            write(nud,'("* Sim years per day   :",i7,9x,"* <-- Running Speed Index")') nint(zypd)
             write(nud,'("****************************************")')
          endif
       endif

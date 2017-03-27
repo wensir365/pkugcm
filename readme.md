@@ -23,8 +23,7 @@ Remove guimod_stub.f90, and comment out all the GUI-related code in puma.f90 wit
 ## 2017-Mar-23: Make PUMA running
 
 Successfully make PUMA running on 1CPU, with fake MPI and GUI interface (stub). 
-I changed "nresources" line in puma.f90, which might be related to retrieving system time used in pumax.c.
-They are marked with "XW".
+I changed "nresources" line in subroutine "epilog" of puma.f90, which is related to retrieving process time, memory, and disk info used in pumax.c. They are just printed into puma_diag file at the closing procedure of a run. No big deal. The code are marked with "XW".
 
 ## 2017-Mar-17: Make PLASIM17 running with MOST
 
