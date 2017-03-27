@@ -27,7 +27,9 @@ They are marked with "XW".
 	as -o legfast32.o legfast32.s
 	mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  restartmod.f90
 	mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  gaussmod.f90
-	mpif90 -o puma.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan mpimod.o fftmod.o guimod.o pumax.o legini.o legfast32.o puma.o restartmod.o gaussmod.o -L/usr/lib/X11 -lX11
+	mpif90 -o puma.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan 
+               mpimod.o fftmod.o guimod.o pumax.o legini.o legfast32.o puma.o restartmod.o gaussmod.o 
+               -L/usr/lib/X11 -lX11
 
 	=== Success: Launched process most_puma_run ===
 
@@ -44,7 +46,9 @@ They are marked with "XW".
 	as -o legfast32.o legfast32.s
 	gfortran -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  restartmod.f90
 	gfortran -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  gaussmod.f90
-	gfortran -o puma.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan mpimod_stub.o fftmod.o guimod.o pumax.o legini.o legfast32.o puma.o restartmod.o gaussmod.o -L/usr/lib/X11 -lX11
+	gfortran -o puma.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan 
+                 mpimod_stub.o fftmod.o guimod.o pumax.o legini.o legfast32.o puma.o restartmod.o gaussmod.o 
+                 -L/usr/lib/X11 -lX11
 
 	=== Success: Launched process most_puma_run ===
 
@@ -66,7 +70,7 @@ They are marked with "XW".
 	gcc -o cc_check.x cc_check.c
 
 	System info for <himalaya>
-	Architecture: Linux himalaya 4.4.0-53-generic #74-Ubuntu SMP Fri Dec 2 15:59:10 UTC 2016 x86_64 x86_64 x86_64 GNU/Linux
+	Architecture: Linux himalaya 4.4.0-53-generic #74-Ubuntu SMP Fri Dec 2 15:59:10 UTC 2016 x86_64 GNU/Linux
 	Endian format             : little endian
 	FORTRAN control word size : 4 bytes
 	FORTRAN integer size      : 4 bytes
@@ -84,5 +88,5 @@ They are marked with "XW".
 
 ### Follow README_UBUNTU:
 
-apt install libx11-dev
-apt install openmpi-bin openmpi-common openmpi-doc libopenmpi-dev
+- apt install libx11-dev
+- apt install openmpi-bin openmpi-common openmpi-doc libopenmpi-dev
