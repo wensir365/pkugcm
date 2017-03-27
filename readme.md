@@ -98,7 +98,7 @@ I changed "nresources" line in subroutine "epilog" of puma.f90, which is related
 	configuration complete - run <most.x>
 
 
-### Follow README_UBUNTU:
+### Install required library following README_UBUNTU
 
 - apt install libx11-dev
 - apt install openmpi-bin openmpi-common openmpi-doc libopenmpi-dev
