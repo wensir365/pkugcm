@@ -1,5 +1,16 @@
 # Change Log
 
+## 2017-Mar-27: Add MPI function
+
+Add mpimod.f90 and make minor modification on makefile, so that I can deliver MPI runs using 4 CPUs. Seems the excutable with MPI still can be run with 1 single CPU, like this: "./puma_mpi.x 32 10". Normally, the MPI run can be done by "mpiexec -np 4 puma_mpi.x 32 10".
+
+The running speed was tested on my Intel i5 CPU with 4 processors, with gfortran as the compilor and -O3 as the optimal argument.
+
+| `gfortran -O3` |   T21 |  T42 |
+|----------------|-------|------|
+| 1xCPU (No MPI) |  4373 |  299 |
+| 4xCPU (MPI)    | 13918 |  782 |
+
 ## 2017-Mar-25: Add Post-Processing (pp)
 
 Add directory "pp" for the post-processing excutable "burn7.x" and 2 associated namelist, one for 3 surface variables, another for 10 multi-level variables. To compile burn7.x you should apt install libnetcdf-cxx-legacy-dev first.
