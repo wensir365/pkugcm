@@ -11,6 +11,8 @@ The running speed, under the unif of "simulate model years per day",  was tested
 | 1 CPU (No MPI) |  4373 |  299 |
 | 4 CPU (MPI)    | 13918 |  782 |
 
+Note that the 1st number here (4373) is 1755 tested on pkuclimate.club, an 5-year-old Intel i3 Xeon CPU.
+
 ## 2017-Mar-25: Add Post-Processing (pp)
 
 Add directory "pp" for the post-processing excutable "burn7.x" and 2 associated namelist, one for 3 surface variables, another for 10 multi-level variables. To compile burn7.x you should apt install libnetcdf-cxx-legacy-dev first.
