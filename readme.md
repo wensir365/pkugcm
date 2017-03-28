@@ -1,5 +1,9 @@
 # Change Log
 
+## 2017-Mar-28: Rename directory puma to src
+
+Rename "puma", the directory of all fortran source code, into "src", to make the directory structure more neat.
+
 ## 2017-Mar-27: Add MPI function
 
 Add mpimod.f90 and make minor modification on makefile, so that I can deliver MPI runs using 4 CPUs. Seems the excutable with MPI still can be run with 1 single CPU, like this: "./puma_mpi.x 32 10". Normally, the MPI run can be done by "mpiexec -np 4 puma_mpi.x 32 10".
