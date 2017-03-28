@@ -2,7 +2,7 @@
 
 ## 2017-Mar-28: Rename directory puma to src
 
-Rename "puma", the directory of all fortran source code, into "src", to make the directory structure more neat.
+Rename "puma", the directory of all fortran source code, into "src", to make the directory structure neater.
 
 ## 2017-Mar-27: Add MPI function
 
