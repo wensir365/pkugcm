@@ -1,0 +1,21 @@
+#!/bin/tcsh
+
+# List of sources:
+# 1	../src/fftmod.f90
+# 2	../src/gaussmod.f90
+# 3	../src/legsym.f90
+# 4	../src/mpimod.f90
+# 5	../src/mpimod_stub.f90
+# 6	../src/puma.f90
+# 7	../src/restartmod.f90
+
+#foreach fn (puma.f90 legsym.f90 gaussmod.f90 fftmod.f90 restartmod.f90 mpimod.f90 mpimod_stub.f90)
+#	a2ps -1 -g ../src/$fn --landscape --font-size=8 -r -o src_{$fn:r}.ps
+#	echo "producing ...... $fn:r.PDF"
+#end
+
+a2ps --toc ../src/puma.f90 ../src/legsym.f90 ../src/gaussmod.f90 ../src/fftmod.f90 ../src/restartmod.f90 ../src/mpimod.f90 ../src/mpimod_stub.f90 ../src/makefile ./readme.md -o src.ps
+
+ps2pdf src.ps pkugcm_src.pdf
+
+rm -f src.p*

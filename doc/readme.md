@@ -1,5 +1,9 @@
 # Change Log
 
+## 2017-Mar-29: Make "doc" directory and produce PDF for all sources
+
+Creat "doc" directory and move LICENSE and readme.md into it. Make "make_srcpdf" script to produce a PDF book for all sources in ../src and readme.md.
+
 ## 2017-Mar-28: Rename directory puma to src
 
 Rename "puma", the directory of all fortran source code, into "src", to make the directory structure neater.
