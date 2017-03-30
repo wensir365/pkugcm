@@ -1,9 +1,10 @@
 # Makefile for PUMA without MPI and GUI
 # Xinyu Wen, Peking Univ, Mar/23/2017
 
-F90=gfortran
-MPIMOD=mpimod_stub
-FFTMOD=fftmod
+F90    = gfortran
+FLAGS  = -fdefault-real-8 -ffree-line-length-none -O3 -pg
+MPIMOD = mpimod_stub
+FFTMOD = fftmod
 
 # Makefile for PUMA with MPI, without GUI
 # Xinyu Wen, Peking Univ, Mar/27/2017
@@ -15,10 +16,10 @@ FFTMOD=fftmod
 OBJ=${MPIMOD}.o ${FFTMOD}.o puma.o legsym.o restartmod.o gaussmod.o
 
 %.o : %.f90
-	${F90} -c -O3 $<
+	${F90} $(FLAGS) -c $<
 
 puma.x:	$(OBJ)
-	${F90} -o puma.x $(OBJ)
+	${F90} $(FLAGS) -o puma.x $(OBJ)
 
 puma.o:		puma.f90
 ${FFTMOD}.o:	${FFTMOD}.f90
