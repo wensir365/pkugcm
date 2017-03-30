@@ -7,6 +7,7 @@ For the first time I profiling the code with "-pg" argument in compling phase an
 
 ### Flat profile:
 
+```
 Each sample counts as 0.01 seconds.
   %   cumulative   self              self     total           
  time   seconds   seconds    calls   s/call   s/call  name    
@@ -88,9 +89,11 @@ Each sample counts as 0.01 seconds.
   0.00    309.67     0.00        1     0.00     0.00  restart_prepare_
   0.00    309.67     0.00        1     0.00     0.00  set_vertical_grid_
   0.00    309.67     0.00        1     0.00     0.00  setzt_
+```
 
 ### Call graph
 
+```
 granularity: each sample hit covers 2 byte(s) for 0.00% of 309.67 seconds
 
 index % time    self  children    called     name
@@ -442,6 +445,7 @@ Index by function name
   [61] initpm_                [68] mpstop_                 [9] spectral_
   [62] initrandom_            [33] mpsum_                 [23] writesp_
   [63] initruido_             [22] mpsumsc_               [36] wrzs_
+```
 
 ## 2017-Mar-29: Make "doc" directory and produce PDF for all sources
 
