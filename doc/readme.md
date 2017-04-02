@@ -1,5 +1,18 @@
 # Change Log
 
+## 2017-Apr-3: Make ppp working as the pre-processor
+
+ppp.f90 works with legsym.f90, fftmod.f90, and gaussmod.f90 in ../src. I re-organized makefile and make it work independantly under current clean framework. Note that use it with following steps:
+
+1. compile the excutable "ppp.x" ("make")
+2. prepare namelist "ppp_namelist" ("ln -s namelist/ppp_namelist .")
+3. prepare orography data file "N032_surf_0129.sra" ("ln -s data/N032_surf_0129.sra .")
+4. run the excutable "./ppp.x > log"
+
+Then, you can see 4 addition files as output: 134 for surface pressure; 121 for constant part of temperature profile; 122 for departure of temperature profile; 123 for the relaxiation of rest. temperature.
+
+Please note that ppp.x could be compatible with T21 and T42, according to the comments in its source code. Not sure if it works fine with other resolutions.
+
 ## 2017-Mar-30: Profiling information
 
 For the first time I profiling the code with "-pg" argument in compling phase and using "gprof -b puma.x gmon.out > profile" after performing a 10-yr T21 run. The results are very very helpful, like this:
