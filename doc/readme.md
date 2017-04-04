@@ -10,10 +10,11 @@ ppp.f90 works with legsym.f90, fftmod.f90, and gaussmod.f90 in ../src. I re-orga
 
 1. compile the excutable "ppp.x" ("make")
 2. prepare namelist "ppp_namelist" ("ln -s namelist/ppp_namelist .")
-3. prepare orography data file "N032_surf_0129.sra" ("ln -s data/N032_surf_0129.sra .")
-4. run the excutable "./ppp.x > log"
+3. prepare namelist "resolution_namelist" ("ln -s namelist/resolution_namelist .")
+4. prepare orography data file "N032_surf_0129.sra" ("ln -s data/N032_surf_0129.sra ." for T21 or "N064_surf_0129.sra" for T42))
+5. run the excutable "./ppp.x > log"
 
-Then, you can see 4 addition files as output: 134 for surface pressure; 121 for constant part of temperature profile; 122 for departure of temperature profile; 123 for the relaxiation of rest. temperature.
+Then, you can see 4 addition files as output: 134 for surface pressure; 121 for constant part of temperature profile; 122 for departure of temperature profile; 123 for the relaxiation of rest. temperature. And 1 plain text file ppp-puma.txt, for information transfered to puma in running stage. I currently neglect this file.
 
 Please note that ppp.x could be compatible with T21 and T42, according to the comments in its source code. Not sure if it works fine with other resolutions.
 
