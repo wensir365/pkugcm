@@ -1,5 +1,9 @@
 # Change Log
 
+## 2017-Apr-4: Add srv-to-nc converter
+
+Add a script "make_netcdf" in ppp/nc to perform converting a service file into netcdf format using Climate Data Operators (CDO). Note that the vertical coordinates, identified as the 2nd integer in the header of a service file, cannot be recognized correctly. Should be "lev", but was converted to "time" instead.
+
 ## 2017-Apr-3: Make ppp working as the pre-processor
 
 ppp.f90 works with legsym.f90, fftmod.f90, and gaussmod.f90 in ../src. I re-organized makefile and make it work independantly under current clean framework. Note that use it with following steps:
