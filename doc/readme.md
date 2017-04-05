@@ -500,6 +500,43 @@ I changed "nresources" line in subroutine "epilog" of puma.f90, which is related
 
 ## 2017-Mar-17: Make PLASIM17 running with MOST
 
+### PlaSim 4core 1year T21 run
+
+```
+wensir@himalaya /work/model/puma17 $ ./most.x 
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  resmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  plasimmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  mpimod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  fftmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  radmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  oceanmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  icemod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  seamod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  cpl_stub.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  guimod_stub.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  rainmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  landmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  simba.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  p_earth.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  plasim.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  calmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  gaussmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  legmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  outmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  miscmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  fluxmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  surfmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  restartmod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  tracermod.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  tpcore.f90
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  trc_routines.f90
+mpicc -c -O3 pumax_stub.c
+mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  lsgmod.f90
+mpif90 -o plasim.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan mpimod.o fftmod.o guimod_stub.o rainmod.o simba.o p_earth.o resmod.o plasim.o plasimmod.o calmod.o gaussmod.o legmod.o outmod.o miscmod.o fluxmod.o radmod.o surfmod.o landmod.o seamod.o icemod.o oceanmod.o restartmod.o tracermod.o tpcore.o trc_routines.o pumax_stub.o lsgmod.o cpl_stub.o 
+
+=== Success: Launched process most_plasim_run ===
+```
+
 ### PUMA 4core 1year T21 run
 
 	wensir@himalaya ~/model/puma17 $ ./most.x 
