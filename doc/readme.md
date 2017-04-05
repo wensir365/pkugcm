@@ -514,7 +514,13 @@ L1i cache:             32K
 L2 cache:              256K
 L3 cache:              6144K
 NUMA node0 CPU(s):     0-3
-Flags:                 fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc aperfmperf eagerfpu pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch intel_pt tpr_shadow vnmi flexpriority ept vpid fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp
+Flags:                 fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush 
+dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs 
+bts rep_good nopl xtopology nonstop_tsc aperfmperf eagerfpu pni pclmulqdq dtes64 monitor ds_cpl vmx est 
+tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave 
+avx f16c rdrand lahf_lm abm 3dnowprefetch intel_pt tpr_shadow vnmi flexpriority ept vpid fsgsbase 
+tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 
+dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp
 ```
 
 ### CPU info for climateserver.3322.org (pkuclimate.club)
@@ -543,7 +549,10 @@ L1i cache:             32K
 L2 cache:              256K
 L3 cache:              4096K
 NUMA node0 CPU(s):     0-3
-Flags:                 fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx rdtscp lm constant_tsc arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc aperfmperf pni dtes64 monitor ds_cpl vmx est tm2 ssse3 cx16 xtpr pdcm sse4_1 sse4_2 popcnt lahf_lm tpr_shadow vnmi flexpriority ept vpid dtherm arat
+Flags:                 fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush 
+dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx rdtscp lm constant_tsc arch_perfmon pebs bts rep_good 
+nopl xtopology nonstop_tsc aperfmperf pni dtes64 monitor ds_cpl vmx est tm2 ssse3 cx16 xtpr pdcm 
+sse4_1 sse4_2 popcnt lahf_lm tpr_shadow vnmi flexpriority ept vpid dtherm arat
 ```
 
 ## 2017-Mar-25: Add Post-Processing (pp)
@@ -592,7 +601,10 @@ mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=sn
 mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  trc_routines.f90
 mpicc -c -O3 pumax_stub.c
 mpif90 -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  lsgmod.f90
-mpif90 -o plasim.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan mpimod.o fftmod.o guimod_stub.o rainmod.o simba.o p_earth.o resmod.o plasim.o plasimmod.o calmod.o gaussmod.o legmod.o outmod.o miscmod.o fluxmod.o radmod.o surfmod.o landmod.o seamod.o icemod.o oceanmod.o restartmod.o tracermod.o tpcore.o trc_routines.o pumax_stub.o lsgmod.o cpl_stub.o 
+mpif90 -o plasim.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan mpimod.o 
+fftmod.o guimod_stub.o rainmod.o simba.o p_earth.o resmod.o plasim.o plasimmod.o calmod.o gaussmod.o 
+legmod.o outmod.o miscmod.o fluxmod.o radmod.o surfmod.o landmod.o seamod.o icemod.o oceanmod.o 
+restartmod.o tracermod.o tpcore.o trc_routines.o pumax_stub.o lsgmod.o cpl_stub.o 
 
 === Success: Launched process most_plasim_run ===
 ```
@@ -647,7 +659,10 @@ gfortran -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=
 gfortran -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  trc_routines.f90
 gcc   -c -O3 -I /usr/lib/X11/include pumax_stub.c
 gfortran -c -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan  lsgmod.f90
-gfortran -o plasim.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan mpimod_stub.o fftmod.o guimod_stub.o rainmod.o simba.o p_earth.o resmod.o plasim.o plasimmod.o calmod.o gaussmod.o legmod.o outmod.o miscmod.o fluxmod.o radmod.o surfmod.o landmod.o seamod.o icemod.o oceanmod.o restartmod.o tracermod.o tpcore.o trc_routines.o pumax_stub.o lsgmod.o cpl_stub.o 
+gfortran -o plasim.x -O3 -ffpe-trap=invalid,zero,overflow -ffpe-summary=none -finit-real=snan mpimod_stub.o 
+fftmod.o guimod_stub.o rainmod.o simba.o p_earth.o resmod.o plasim.o plasimmod.o calmod.o gaussmod.o 
+legmod.o outmod.o miscmod.o fluxmod.o radmod.o surfmod.o landmod.o seamod.o icemod.o oceanmod.o 
+restartmod.o tracermod.o tpcore.o trc_routines.o pumax_stub.o lsgmod.o cpl_stub.o 
 
 === Success: Launched process most_plasim_run ===
 ```
