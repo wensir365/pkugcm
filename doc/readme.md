@@ -477,14 +477,21 @@ Rename "puma", the directory of all fortran source code, into "src", to make the
 
 Add mpimod.f90 and make minor modification on makefile, so that I can deliver MPI runs using 4 CPUs. Seems the excutable with MPI still can be run with 1 single CPU, like this: "./puma_mpi.x 32 10". Normally, the MPI run can be done by "mpiexec -np 4 puma_mpi.x 32 10".
 
-The running speed, under the unif of "simulate model years per day",  was tested on my Intel i5 CPU with 4 processors, with gfortran as the compilor and -O3 as the optimal argument.
+The running speed, under the unif of "simulate model years per day",  was tested on my Intel i5-6400 CPU (roughly 100 GFlops) with 4 processors, with gfortran as the compilor and -O3 as the optimal argument.
 
-| `gfortran -O3` |   T21 |  T42 |
+
+| ** PUMA **     |   T21 |  T42 |
 |:---------------|------:|-----:|
 | 1 CPU (No MPI) |  4373 |  299 |
 | 4 CPU (MPI)    | 13918 |  782 |
 
-Note that the 1st number here (4373) is 1755 tested on pkuclimate.club, an 5-year-old Intel i3 Xeon CPU.
+| ** PlaSim **   |   T21 |  T42 |
+|:---------------|------:|-----:|
+| 1 CPU (No MPI) |   155 |   23 |
+| 4 CPU (MPI)    |   514 |   67 |
+
+
+Note that the 1st number here (4373) is 1755 tested on pkuclimate.club, an 5-year-old Intel i3-530 CPU.
 
 ### CPU info for my PC
 
