@@ -490,8 +490,10 @@ The running speed, under the unif of "simulate model years per day",  was tested
 | 1 CPU (No MPI) |   155 |   23 |
 | 4 CPU (MPI)    |   514 |   67 |
 
+Note:
 
-Note that the 1st number here (4373) is 1755 tested on pkuclimate.club, an 5-year-old Intel i3-530 CPU.
+- T21 has 64(lon)x32(lat)=2048 grids; T42 has 128(lon)x64(lat)=8192 grids.
+- the 1st number here (4373) is 1755 tested on pkuclimate.club, an 5-year-old Intel i3-530 CPU.
 
 ### CPU info for my PC
 
