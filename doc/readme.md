@@ -484,7 +484,7 @@ The running speed, under the unif of "simulate model years per day",  was tested
 |:---------------|------:|-----:|
 | 1 CPU (No MPI) |  4373 |  299 |
 | 4 CPU (MPI)    | 13918 |  782 |
-|                |       |      |
+
 | PlaSim         |   T21 |  T42 |
 |:---------------|------:|-----:|
 | 1 CPU (No MPI) |   155 |   23 |
