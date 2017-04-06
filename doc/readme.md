@@ -480,12 +480,12 @@ Add mpimod.f90 and make minor modification on makefile, so that I can deliver MP
 The running speed, under the unif of "simulate model years per day",  was tested on my Intel i5-6400 CPU (roughly 100 GFlops) with 4 processors, with gfortran as the compilor and -O3 as the optimal argument.
 
 
-| ** PUMA **     |   T21 |  T42 |
+| PUMA           |   T21 |  T42 |
 |:---------------|------:|-----:|
 | 1 CPU (No MPI) |  4373 |  299 |
 | 4 CPU (MPI)    | 13918 |  782 |
-
-| ** PlaSim **   |   T21 |  T42 |
+|                |       |      |
+| PlaSim         |   T21 |  T42 |
 |:---------------|------:|-----:|
 | 1 CPU (No MPI) |   155 |   23 |
 | 4 CPU (MPI)    |   514 |   67 |
