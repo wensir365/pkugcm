@@ -12,54 +12,64 @@
       end
 
       subroutine mrdiff(p,d,n,l)
-      real :: p(n)
-      real :: d(n)
+      integer, intent(in) :: n, l
+      real, dimension(n), intent(in) :: p
+      real, dimension(n), intent(in) :: d
       return
       end
 
       subroutine mrsum(k) ! sum up 1 integer
+      integer, intent(in) :: k
       return
       end
 
       subroutine mrbci(k) ! broadcast 1 integer
+      integer, intent(in) :: k
       return
       end
 
       subroutine mpbci(k) ! broadcast 1 integer
+      integer, intent(in) :: k
       return
       end
 
       subroutine mpbcin(k,n) ! broadcast n integer
-      integer :: k(n)
+      integer, intent(in) :: n
+      integer, dimension(n), intent(in) :: k
       return
       end
 
       subroutine mpbcr(p) ! broadcast 1 real
+      integer, intent(in) :: p
       return
       end
 
       subroutine mpbcrn(p,n) ! broadcast n real
-      real :: p(n)
+      integer, intent(in) :: n
+      real, dimension(n), intent(in) :: p
       return
       end
 
       subroutine mpbcl(k) ! broadcast 1 logical
-      logical :: k
+      logical, intent(in) :: k
       return
       end
 
       subroutine mpscin(k,n) ! scatter n integer
-      integer :: k(n)
+      integer, intent(in) :: n
+      integer, dimension(n), intent(in) :: k
       return
       end
 
       subroutine mpscrn(p,n) ! scatter n real
-      real :: p(n)
+      integer, intent(in) :: n
+      real, dimension(n), intent(in) :: p
       return
       end
 
       subroutine mpscdn(p,n) ! scatter n double precision
-      real (kind=8) :: p(n)
+      integer, intent(in) :: n
+      real, dimension(n), intent(in) :: p
       return
       end
 
@@ -209,30 +219,6 @@
       call put_restart_array(yn,p,kdim,kdim,klev)
       return
       end subroutine mpputgp
-
-
-!      subroutine mpsurfgp(yn,p,kdim,klev)
-!      character (len=*) :: yn
-!      real :: p(kdim,klev)
-!      call get_surf_array(yn,p,kdim,kdim,klev,iread)
-!      return
-!      end subroutine mpsurfgp
-!
-!
-!      subroutine mpsurfyear(yn,p,kdim,kmon)
-!      character (len=*) :: yn
-!      real :: p(kdim,kmon)
-!      call get_surf_year(yn,p,kdim,kmon,iread)
-!      return
-!      end subroutine mpsurfyear
-!
-!
-!      subroutine mp3dyear(yn,p,kdim,klev,kmon)
-!      character (len=*) :: yn
-!      real :: p(kdim,klev,kmon)
-!      call get_3d_year(yn,p,kdim,klev,kmon,iread)
-!      return
-!      end subroutine mp3dyear
 
 
       subroutine mpmaxval(p,kdim,klev,pmax)

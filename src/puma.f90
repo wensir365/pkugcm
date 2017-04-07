@@ -90,25 +90,26 @@ character (256) :: puma_sp_init        = "puma_sp_init"
 ! ****************************************************************
 ! * Don't touch the following parameter definitions !            *
 ! ****************************************************************
-integer, parameter :: PUMA   = 0        ! Model ID
-integer, parameter :: PLASIM = 1        ! Model ID
+integer, parameter :: PUMA   = 0              ! Model ID
+integer, parameter :: PLASIM = 1              ! Model ID
 
-parameter(MAXLEV = 100)                 ! Maximum level dimension
-parameter(NROOT  =   0)                 ! Master node
+! XW (2017-04-07): change parameters to standard F90 format below
+integer, parameter :: MAXLEV = 100            ! Maximum level dimension
+integer, parameter :: NROOT  =   0            ! Master node
 
-parameter(PI     = 3.141592653589793D0) ! Pi
-parameter(TWOPI  = PI + PI)             ! 2 Pi
+real, parameter :: PI = 3.141592653589793D0   ! Pi
+real, parameter :: TWOPI = PI + PI            ! 2 Pi
 
-parameter(AKAP_EARTH   = 0.286 )      ! Kappa Earth (Poisson constant R/Cp)
-parameter(ALR_EARTH    = 0.0065)      ! Lapse rate Earth
-parameter(GA_EARTH     = 9.80665)     ! Gravity Earth (mean on NN)
-parameter(GASCON_EARTH = 287.0)       ! Gas constant for dry air on Earth
-parameter(PSURF_EARTH  = 101100.0)    ! Mean Surface pressure [Pa] on Earth
-                        ! Trenberth 1981, J. Geoph. Res., Vol.86, 5238-5246
-parameter(PLARAD_EARTH = 6371220.0)   ! Earth radius
+real, parameter :: AKAP_EARTH   = 0.286       ! Kappa Earth (Poisson constant R/Cp)
+real, parameter :: ALR_EARTH    = 0.0065      ! Lapse rate Earth
+real, parameter :: GA_EARTH     = 9.80665     ! Gravity Earth (mean on NN)
+real, parameter :: GASCON_EARTH = 287.0       ! Gas constant for dry air on Earth
+real, parameter :: PSURF_EARTH  = 101100.0    ! Mean Surface pressure [Pa] on Earth
+                                              ! Trenberth 1981, J. Geoph. Res., Vol.86, 5238-5246
+real, parameter :: PLARAD_EARTH = 6371220.0   ! Earth radius
 
-parameter(PNU    = 0.02)             ! Time filter
-parameter(PNU21  = 1.0 - 2.0*PNU)    ! Time filter 2
+real, parameter :: PNU          = 0.02        ! Time filter
+real, parameter :: PNU21        = 1.0-2.0*PNU ! Time filter 2
 
 ! *****************************************************************
 ! * EZ: Factor to multiply the spherical harmonic Y_(1,0) to get  *
@@ -982,8 +983,8 @@ end subroutine master
 
       subroutine epilog
       use pumamod
-      real    (kind=8) :: zut,zst
-      integer (kind=8) :: imem,ipr,ipf,isw,idr,idw
+      real    :: zut,zst                       ! XW(2017-4-7): remove "(kind=8)" at 2 lines
+      integer :: imem,ipr,ipf,isw,idr,idw
 
       if (mypid == NROOT) close(40) ! close output file
 
@@ -1052,27 +1053,28 @@ end subroutine master
 
          call cpu_time(tmstop)
          tmrun = tmstop - tmstart
+
          if (nstep > nstep1) then 
             zspy = tmrun * 360.0 * real(ntspd) / (nstep - nstep1) ! sec / siy
             zypd = (24.0 * 3600.0 / zspy)                         ! siy / day
             write(nud,'(/,"****************************************")')
-            if (zut > 0.0) &
+            !if (zut > 0.0) &
             write(nud,  '("* User   time         : ", f10.3," sec * N/A")') zut
-            if (zst > 0.0) &
+            !if (zst > 0.0) &
             write(nud,  '("* System time         : ", f10.3," sec * N/A")') zst
-            if (zut + zst > 0.0) tmrun = zut + zst
+            !if (zut + zst > 0.0) tmrun = zut + zst
             write(nud,  '("* Total CPU time      : ", f10.3," sec *")') tmrun
-            if (imem > 0) &
+            !if (imem > 0) &
             write(nud,  '("* Memory usage        : ", f10.3," MB  * N/A")') imem * 0.000001
-            if (ipr > 0 .and. ipr < 1000000) &
+            !if (ipr > 0 .and. ipr < 1000000) &
             write(nud,  '("* Page reclaims       : ", i6," pages   * N/A")') ipr
-            if (ipf > 0 .and. ipf < 1000000) &
+            !if (ipf > 0 .and. ipf < 1000000) &
             write(nud,  '("* Page faults         : ", i6," pages   * N/A")') ipf
-            if (isw > 0 .and. isw < 1000000) &
+            !if (isw > 0 .and. isw < 1000000) &
             write(nud,  '("* Page swaps          : ", i6," pages   * N/A")') isw
-            if (idr > 0 .and. idr < 1000000) &
+            !if (idr > 0 .and. idr < 1000000) &
             write(nud,  '("* Disk read           : ", i6," blocks  * N/A")') idr
-            if (idw > 0 .and. idw < 1000000) &
+            !if (idw > 0 .and. idw < 1000000) &
             write(nud,  '("* Disk write          : ", i6," blocks  * N/A")') idw
             write(nud,'("****************************************")')
             if (zspy < 600.0) then
@@ -1364,7 +1366,7 @@ end subroutine master
          spstep = mpstep * 60.0
       endif
       if (spstep == 0.0) spstep = 60.0 * mpstep
-      if (ntspd == 0) ntspd = sol_day / spstep
+      if (ntspd == 0) ntspd = int(sol_day / spstep) !XW(2017-4-7): add int()
       
       nafter = ntspd                             ! daily output
       if (nwpd > 0 .and. nwpd <= ntspd) then
@@ -2639,7 +2641,7 @@ end subroutine master
 !     remove planetary vorticity so sz contains relative vorticity
 
       real :: spec(NTP1)
-      real (kind=4) ziso(idim)
+      real :: ziso(idim) !XW(2017-4-7): remove "kind=4" for ziso
 
       sz(3,:) = sz(3,:) - plavor
 
@@ -3088,17 +3090,17 @@ end subroutine master
       subroutine gridpoint
       use pumamod
 
-      real gtn(NLON,NLPP,NLEV)
-      real gvpp(NHOR)
-      real gpmt(NLON,NLPP)
-      real sdf(NESP,NLEV)
-      real stf(NESP,NLEV)
-      real szf(NESP,NLEV)
-      real spf(NESP)
-      real zgp(NLON,NLAT)
-      real zgpp(NHOR)
-      real (kind=4) :: zcs(NLAT,NLEV)
-      real (kind=4) :: zsp(NRSP)
+      real, dimension(NLON,NLPP,NLEV) :: gtn
+      real, dimension(NHOR)           :: gvpp
+      real, dimension(NLON,NLPP)      :: gpmt
+      real, dimension(NESP,NLEV)      :: sdf
+      real, dimension(NESP,NLEV)      :: stf
+      real, dimension(NESP,NLEV)      :: szf
+      real, dimension(NESP)           :: spf
+      real, dimension(NLON,NLAT)      :: zgp
+      real, dimension(NHOR)           :: zgpp
+      real, dimension(NLAT,NLEV)      :: zcs  !XW(2017-4-7): remove "(kind=4)" for zcs and zsp
+      real, dimension(NRSP)           :: zsp
 
       do jlev = 1 , NLEV
          call sp2fc(sd(1,jlev),gd(1,jlev))
@@ -3714,8 +3716,8 @@ end subroutine master
 ! 
 
       if(ndheat > 0) then
-       call mkdheat(zszte(:,:,1),zszte(:,:,2)                           &
-     &             ,zsdte(:,:,1),zsdte(:,:,2),zsp)
+       call mkdheat(zszte(:,:,1),zszte(:,:,2),     &
+                    zsdte(:,:,1),zsdte(:,:,2),zsp)
       endif
 
 

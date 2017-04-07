@@ -6,7 +6,8 @@
 #=====================
 # GNU gfortran
 F90    = gfortran
-FLAGS  = -O3 -fdefault-real-8 -ffree-line-length-none -Wall #-pg
+#FLAGS  = -O3 -fdefault-real-8 -ffree-line-length-none #-Wall #-pg
+FLAGS  = -O3 -ffree-line-length-none #-Wall #-pg
 
 # PGI pgfortran
 #F90    = pgfortran

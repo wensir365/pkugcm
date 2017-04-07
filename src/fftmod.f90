@@ -159,7 +159,7 @@
 !     ================
 
       subroutine dfft3(a,trigs,n)
-      parameter(SIN60 = 0.866025403784438D0)
+      real, parameter :: SIN60 = 0.866025403784438D0
       dimension a(n),c(n),trigs(n)
 
       ja = 1              !  1
@@ -527,7 +527,7 @@
 
       subroutine ifft3(a,trigs,n,lot,la)
       dimension a(n,lot),c(n,lot),trigs(n)
-      parameter(SIN60 = 0.866025403784438D0)
+      real, parameter :: SIN60 = 0.866025403784438D0
 
       ib = 2 * (n/3) + 1
 
@@ -577,7 +577,7 @@
 !     ================
 
       subroutine ifft8(a,c,n,lot)
-      parameter(SQRT2 = 1.414213562373095D0)
+      real, parameter :: SQRT2 = 1.414213562373095D0
       dimension a(n*lot),c(n*lot)
       la = n / 8
 
