@@ -1,5 +1,47 @@
 # Change Log
 
+## 2017-Apr-7: Install PGI Community Edition and test NVIDIA GTX-1060
+
+Install the free community edition of PGI compilers, with support of OpenACC working with NVIDIA GPUs. I received the basic information about my GTX-1060 card via command "pgaccelinfo":
+
+```
+wensir@himalaya /work/model/pkugcm/doc $ pgaccelinfo 
+
+CUDA Driver Version:           8000
+NVRM version:                  NVIDIA UNIX x86_64 Kernel Module  375.39  Tue Jan 31 20:47:00 PST 2017
+
+Device Number:                 0
+Device Name:                   GeForce GTX 1060 3GB
+Device Revision Number:        6.1
+Global Memory Size:            3153068032
+Number of Multiprocessors:     9
+Concurrent Copy and Execution: Yes
+Total Constant Memory:         65536
+Total Shared Memory per Block: 49152
+Registers per Block:           65536
+Warp Size:                     32
+Maximum Threads per Block:     1024
+Maximum Block Dimensions:      1024, 1024, 64
+Maximum Grid Dimensions:       2147483647 x 65535 x 65535
+Maximum Memory Pitch:          2147483647B
+Texture Alignment:             512B
+Clock Rate:                    1708 MHz
+Execution Timeout:             Yes
+Integrated Device:             No
+Can Map Host Memory:           Yes
+Compute Mode:                  default
+Concurrent Kernels:            Yes
+ECC Enabled:                   No
+Memory Clock Rate:             4004 MHz
+Memory Bus Width:              192 bits
+L2 Cache Size:                 1572864 bytes
+Max Threads Per SMP:           2048
+Async Engines:                 2
+Unified Addressing:            Yes
+Managed Memory:                Yes
+PGI Compiler Option:           -ta=tesla:cc60
+```
+
 ## 2017-Apr-4: Add srv-to-nc converter
 
 Add a script "make_netcdf" in ppp/nc to perform converting a service file into netcdf format using Climate Data Operators (CDO). Note that the vertical coordinates, identified as the 2nd integer in the header of a service file, cannot be recognized correctly. Should be "lev", but was converted to "time" instead.
