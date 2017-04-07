@@ -1,18 +1,33 @@
-# Makefile for PUMA without MPI and GUI
+# Makefile for PUMA without GUI
 # Xinyu Wen, Peking Univ, Mar/23/2017
 
+#=====================
+# 1. Compiler & Flags
+#=====================
+# GNU gfortran
 F90    = gfortran
-FLAGS  = -fdefault-real-8 -ffree-line-length-none -O3 -pg
-MPIMOD = mpimod_stub
-FFTMOD = fftmod
+FLAGS  = -O3 -fdefault-real-8 -ffree-line-length-none -Wall #-pg
 
-# Makefile for PUMA with MPI, without GUI
-# Xinyu Wen, Peking Univ, Mar/27/2017
+# PGI pgfortran
+#F90    = pgfortran
+#FLAGS  = -r8 -O2 ‑Ktrap=fp,ovf,unf,inexact #-Kieee
 
-#F90=mpif90
-#MPIMOD=mpimod
-#FFTMOD=fftmod
+#=====================
+# 2. if MPI?
+#=====================
+# No
+MPIMOD	= mpimod_stub
+FFTMOD	= fftmod
 
+# Yes
+#F90	= mpif90
+#FLAGS  = -O2 -Wall
+#MPIMOD	= mpimod
+#FFTMOD	= fftmod
+
+#====================
+# 3. Compile
+#====================
 OBJ=${MPIMOD}.o ${FFTMOD}.o puma.o legsym.o restartmod.o gaussmod.o
 
 %.o : %.f90
@@ -28,5 +43,9 @@ legsym.o:	legsym.f90
 restartmod.o:	restartmod.f90
 gaussmod.o:	gaussmod.f90
 
+#====================
+# 4. Clean
+#====================
 clean:
 	rm -f *.o *.mod
+
