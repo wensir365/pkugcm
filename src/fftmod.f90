@@ -3,8 +3,9 @@
 !     =============
 
       module fftmod
-      parameter(NRES = 12)
-      integer :: nallowed(NRES) = (/16,32,48,64,96,128,256,384,512,1024,2048,4096/)
+      implicit none
+      integer, parameter :: NRES = 12
+      integer, dimension(NRES) :: nallowed = (/16,32,48,64,96,128,256,384,512,1024,2048,4096/)
 !     T3    - N16   : 8-2
 !     T10   - N32   : 8-2-2
 !     T15   - N48   : 8-3-2
@@ -19,7 +20,7 @@
 !     T1365 - N4096 : 8-4-4-4-4-2
 
       integer :: lastn = 0
-      real,allocatable :: trigs(:)
+      real, allocatable :: trigs(:) !XW: constant parameters to be set in fftini
       end module fftmod
 
 !     ================
@@ -28,12 +29,15 @@
 
       subroutine gp2fc(a,n,lot)
       use fftmod
-      real a(n,lot)
+      implicit none
+      integer, intent(in) :: n, lot
+      real, dimension(n,lot), intent(inout) :: a
+      integer :: la,l
 
       if (n /= lastn) then
          if (allocated(trigs)) deallocate(trigs)
          allocate(trigs(n))
-         lastn = n
+         lastn = n !XW: make fftini can be called for just ONCE
          call fftini(n)
       endif
 
@@ -54,7 +58,6 @@
             call dfft2(a(1,l),trigs,n)
          enddo
       endif
-      return
       end subroutine gp2fc
 
 !     ================
@@ -63,13 +66,16 @@
 
       subroutine fc2gp(a,n,lot)
       use fftmod
-      real a(n,lot)
+      implicit none
+      integer, intent(in) :: n, lot
+      real, dimension(n,lot), intent(inout) :: a
+      integer :: nf,la
 
       if (n /= lastn) then
          if (allocated(trigs)) deallocate(trigs)
          allocate(trigs(n))
          lastn = n
-         call fftini(n)
+         call fftini(n) !XW: just call fftini ONCE
       endif
 
       nf = n/8
@@ -83,7 +89,6 @@
          call ifft4(a,trigs,n,lot,la)
       enddo
       call ifft8(a,a,n,lot)
-      return
       end subroutine fc2gp
 
 !     =================
@@ -92,7 +97,11 @@
 
       subroutine fftini(n)
       use fftmod
-      logical labort
+      implicit none
+      integer, intent(in) :: n
+      logical :: labort
+      integer :: j,k
+      real :: del,angle
 
 !     check for allowed values of n
 
@@ -114,11 +123,10 @@
 
       del = 4.0 * asin(1.0) / n
       do k=0,n/2-1
-        angle = k * del
+        angle = del * k
         trigs(2*k+1) = cos(angle)
         trigs(2*k+2) = sin(angle)
       enddo
-      return
       end subroutine fftini
 
 !     ================
@@ -126,7 +134,16 @@
 !     ================
 
       subroutine dfft2(a,trigs,n)
-      dimension a(n),c(n),trigs(n)
+      implicit none
+      integer, intent(in) :: n
+      real, dimension(n), intent(in) :: trigs
+      real, dimension(n), intent(inout) :: a
+      
+      ! local
+      real, dimension(n) :: c
+      integer :: ja,jb
+      real :: c1,s1,a1p3,a3m1
+      integer :: i
 
       c(1) = a(1) + a(2)
       c(2) = 0.0
@@ -151,7 +168,6 @@
       c(ja+1) = -a(n  )
 
       a = c
-      return
       end subroutine dfft2
 
 !     ================
@@ -159,8 +175,17 @@
 !     ================
 
       subroutine dfft3(a,trigs,n)
+      implicit none
+      integer, intent(in) :: n
+      real, dimension(n), intent(in) :: trigs
+      real, dimension(n), intent(inout) :: a
+
+      ! local
       real, parameter :: SIN60 = 0.866025403784438D0
-      dimension a(n),c(n),trigs(n)
+      real, dimension(n) :: c(n)
+      integer :: ja,jb,jc
+      real :: c1,s1, c2,s2, a1,b1, a2,b2, a3,b3
+      integer :: i
 
       ja = 1              !  1
       jb = 2 * (n/3)  + 1 ! 65
@@ -185,7 +210,7 @@
          a2 = a(i  ) - 0.5 * a1
          b2 = a(i+3) - 0.5 * b1
          a3 = SIN60*((c1*a(i+1)+s1*a(i+4))-(c2*a(i+2)+s2*a(i+5)))
-         b3 = SIN60*((c1*a(i+4)-s1*A(i+1))-(c2*a(i+5)-s2*a(i+2)))
+         b3 = SIN60*((c1*a(i+4)-s1*a(i+1))-(c2*a(i+5)-s2*a(i+2)))
          c(ja  ) = a(i  ) + a1
          c(ja+1) = a(i+3) + b1
          c(jb  ) = a2 + b3
@@ -201,8 +226,8 @@
          c(ja  ) = a(n-2) + 0.5 * (a(n-1) - a(n)) ! 33
          c(ja+1) =       -SIN60 * (a(n-1) + a(n)) ! 34
       endif
-      a(:) = c(:)
-      return
+
+      a = c
       end subroutine dfft3
 
 !     ================
@@ -210,7 +235,23 @@
 !     ================
 
       subroutine dfft4(a,trigs,n,lot,la)
-      dimension a(n,lot),c(n,lot),trigs(n)
+      implicit none
+      integer, intent(in) :: n, lot
+      integer, intent(inout) :: la
+      real, dimension(n), intent(in) :: trigs
+      real, dimension(n,lot), intent(inout) :: a
+
+      ! local
+      real,parameter :: sin45=sqrt(0.5)
+      real, dimension(n,lot) :: c
+      integer :: i1,i2,i3,i4,i5,i6,i7, ibase
+      integer :: j1,j2,j3,j4,j5,j6,j7, j0,jink
+      integer :: kb,kc,kd
+      real :: c1,s1, c2,s2, c3,s3
+      real :: a0p2, a1p3, a1m3, a1p5, a2p6, a3p7, a5m1, a6m2, a7m3
+      real :: a0,a1,a2,a3, b0,b1,b2,b3
+      integer :: i,j,k,l
+
       la = la / 4
 
       i1 = la
@@ -249,7 +290,7 @@
 
       ibase=4*la
 
-      do 450 k=la,(n-4)/8,la
+      do k=la,(n-4)/8,la
          kb=k+k
          kc=kb+kb
          kd=kc+kb
@@ -289,18 +330,18 @@
             i=i+1
          enddo
 
-        ibase=ibase+8*la
-        j0 = j0 + jink
-        j1 = j1 + jink
-        j2 = j2 - jink
-        j3 = j3 - jink
-        j4 = j0 + la
-        j5 = j1 + la
-        j6 = j2 + la
-        j7 = j3 + la
-450   continue
+         ibase=ibase+8*la
+         j0 = j0 + jink
+         j1 = j1 + jink
+         j2 = j2 - jink
+         j3 = j3 - jink
+         j4 = j0 + la
+         j5 = j1 + la
+         j6 = j2 + la
+         j7 = j3 + la
+      end do
+
       if (j1 <= j2) then
-         sin45=sqrt(0.5)
          i=ibase+1
          do j=1,la
             do l=1,lot
@@ -314,16 +355,16 @@
             i=i+1
          enddo
       endif
+
       if (la == 1) then
          do l=1,lot
-         a(1,l) = c(1,l)
-         a(2,l) = 0.0
-         a(3:n,l) = c(2:n-1,l)
+            a(1,l) = c(1,l)
+            a(2,l) = 0.0
+            a(3:n,l) = c(2:n-1,l)
          enddo
       else
          a = c
       endif
-      return
       end subroutine dfft4
 
 !     ================
@@ -331,7 +372,17 @@
 !     ================
 
       subroutine dfft8(a,c,n,lot)
-      real a(n*lot),c(n*lot)
+      implicit none
+      integer, intent(in) :: n, lot
+      real, dimension(n*lot), intent(inout) :: a, c
+
+      ! local
+      integer :: la, i0,i1,i2,i3,i4,i5,i6,i7
+      real :: z, zsin45
+      real :: a0p4,a1p5,a2p6,a3p7, a5m1,a7m3,a0m4,a6m2
+      real :: a0p4p2p6, a1p5p3p7, a7m3p5m1, a7m3m5m1
+      integer :: i
+      
       la = n / 8
       z  = 1.0 / n
       zsin45 = z * sqrt(0.5)
@@ -369,15 +420,133 @@
          c(i2) = a7m3p5m1 + a6m2
          c(i6) = a7m3p5m1 - a6m2
       enddo
-      return
       end subroutine dfft8
+
+!     ================
+!     SUBROUTINE IFFT2
+!     ================
+
+      subroutine ifft2(a,trigs,n,lot,la)
+      implicit none
+      integer, intent(in) :: n, lot
+      integer, intent(inout) :: la
+      real, dimension(n), intent(in) :: trigs
+      real, dimension(n,lot), intent(inout) :: a
+
+      ! local
+      real, dimension(n,lot) :: c
+      real :: c1,s1, amb,apb
+      integer :: ia,ib
+      integer :: j,l
+
+      c(1,:) = 0.5 * a(1,:)
+      c(2,:) = c(1,:)
+
+      ia    =   3
+      ib    = n-1
+
+      do j = 3 , n-5 , 4
+         c1 = trigs(ia  )
+         s1 = trigs(ia+1)
+         do l=1,lot
+            amb = a(ia  ,l) - a(ib  ,l)
+            apb = a(ia+1,l) + a(ib+1,l)
+            c(j  ,l) = a(ia  ,l) + a(ib  ,l)
+            c(j+2,l) = a(ia+1,l) - a(ib+1,l)
+            c(j+1,l) = c1 * amb - s1 * apb
+            c(j+3,l) = s1 * amb + c1 * apb
+         enddo
+         ia = ia + 2
+         ib = ib - 2
+      enddo
+      c(n-1,:) =  a(ia  ,:)
+      c(n  ,:) = -a(ia+1,:)
+
+      la = 2
+      a  = c
+      end subroutine ifft2
+
+!     ================
+!     SUBROUTINE IFFT3
+!     ================
+
+      subroutine ifft3(a,trigs,n,lot,la)
+      implicit none
+      integer, intent(in) :: n, lot
+      integer, intent(inout) :: la
+      real, dimension(n), intent(in) :: trigs
+      real, dimension(n,lot), intent(inout) :: a
+
+      ! local
+      real, parameter :: SIN60 = 0.866025403784438D0
+      real, dimension(n,lot) :: c
+      integer :: ia,ib,ic
+      real :: c1,s1, c2,s2
+      real :: hbpc,hbmc, sbpc,sbmc
+      integer :: j,l
+
+      ib = 2 * (n/3) + 1
+
+      c(1,:) = 0.5 * a(1,:) + a(ib,:)
+      c(2,:) = 0.5 * a(1,:) - 0.5 * a(ib,:) - SIN60 * a(ib+1,:)
+      c(3,:) = 0.5 * a(1,:) - 0.5 * a(ib,:) + SIN60 * a(ib+1,:)
+
+      ia = 3
+      ic = ib - 2
+      ib = ib + 2
+
+      do j = 4 , n-8 , 6
+         c1 = trigs(ia  )
+         s1 = trigs(ia+1)
+         c2 = trigs(ia+ia-1)
+         s2 = trigs(ia+ia  )
+
+         do l = 1 , lot
+            hbpc = a(ia  ,l) - 0.5 * (a(ib  ,l) + a(ic  ,l))
+            hbmc = a(ia+1,l) - 0.5 * (a(ib+1,l) - a(ic+1,l))
+            sbmc = SIN60 * (a(ib  ,l) - a(ic  ,l))
+            sbpc = SIN60 * (a(ib+1,l) + a(ic+1,l))
+
+            c(j  ,l) = a(ia  ,l) + a(ib  ,l) + a(ic  ,l)
+            c(j+3,l) = a(ia+1,l) + a(ib+1,l) - a(ic+1,l)
+            c(j+1,l) = c1 * (hbpc-sbpc) - s1 * (hbmc+sbmc)
+            c(j+4,l) = s1 * (hbpc-sbpc) + c1 * (hbmc+sbmc)
+            c(j+2,l) = c2 * (hbpc+sbpc) - s2 * (hbmc-sbmc)
+            c(j+5,l) = s2 * (hbpc+sbpc) + c2 * (hbmc-sbmc)
+         enddo
+         ia = ia + 2
+         ib = ib + 2
+         ic = ic - 2
+      enddo
+
+      c(n-2,:) = a(ia,:)
+      c(n-1,:) =   0.5 * a(ia,:) - SIN60 * a(ia+1,:)
+      c(n  ,:) = - 0.5 * a(ia,:) - SIN60 * a(ia+1,:)
+
+      la = 3
+      a  = c
+      end subroutine ifft3
 
 !     ================
 !     SUBROUTINE IFFT4
 !     ================
 
       subroutine ifft4(c,trigs,n,lot,la)
-      dimension a(n,lot),c(n,lot),trigs(n)
+      implicit none
+      integer, intent(in) :: n, lot
+      integer, intent(inout) :: la
+      real, dimension(n), intent(in) :: trigs
+      real, dimension(n,lot), intent(inout) :: c
+
+      ! local
+      real, parameter :: sin45=sqrt(0.5)
+      real, dimension(n,lot) :: a
+      integer :: m, kstop, kb, kc, kd
+      integer :: i0,i1,i2,i3,i4,i5,i6,i7, iink
+      integer ::    j1,j2,j3,j4,j5,j6,j7, jbase
+      real :: c1,s1, c2,s2, c3,s3
+      real :: a0p2,a0m2, a1p3,a1m3, a4p6,a4m6, a5p7,a5m7, a0p2m1p3,a4m6m5m7
+      integer :: i,j,k,l
 
       if (la == 1) then
          a(1,:) = 0.5 * c(1,:)
@@ -422,163 +591,85 @@
       i6    = i2 + la
       i7    = i3 + la
 
-      do 450 k=la,kstop,la
-        kb=k+k
-        kc=kb+kb
-        kd=kc+kb
-        c1=trigs(kb+1)
-        s1=trigs(kb+2)
-        c2=trigs(kc+1)
-        s2=trigs(kc+2)
-        c3=trigs(kd+1)
-        s3=trigs(kd+2)
-        do i = 1 , la
-           j = jbase
-           do l=1,lot
-           a0p2 = a(i0+i,l) + a(i2+i,l)
-           a0m2 = a(i0+i,l) - a(i2+i,l)
-           a1p3 = a(i1+i,l) + a(i3+i,l)
-           a1m3 = a(i1+i,l) - a(i3+i,l)
-           a4p6 = a(i4+i,l) + a(i6+i,l)
-           a4m6 = a(i4+i,l) - a(i6+i,l)
-           a5p7 = a(i5+i,l) + a(i7+i,l)
-           a5m7 = a(i5+i,l) - a(i7+i,l)
+      do k=la,kstop,la
+         kb=k+k
+         kc=kb+kb
+         kd=kc+kb
+         c1=trigs(kb+1)
+         s1=trigs(kb+2)
+         c2=trigs(kc+1)
+         s2=trigs(kc+2)
+         c3=trigs(kd+1)
+         s3=trigs(kd+2)
+         do i = 1 , la
+            j = jbase
+            do l=1,lot
+               a0p2 = a(i0+i,l) + a(i2+i,l)
+               a0m2 = a(i0+i,l) - a(i2+i,l)
+               a1p3 = a(i1+i,l) + a(i3+i,l)
+               a1m3 = a(i1+i,l) - a(i3+i,l)
+               a4p6 = a(i4+i,l) + a(i6+i,l)
+               a4m6 = a(i4+i,l) - a(i6+i,l)
+               a5p7 = a(i5+i,l) + a(i7+i,l)
+               a5m7 = a(i5+i,l) - a(i7+i,l)
+ 
+               a0p2m1p3 = a0p2 - a1p3
+               a4m6m5m7 = a4m6 - a5m7
 
-           a0p2m1p3 = a0p2 - a1p3
-           a4m6m5m7 = a4m6 - a5m7
-
-           c(   j,l) = a0p2 + a1p3
-           c(j4+j,l) = a4m6 + a5m7
-           c(j2+j,l) = c2 * a0p2m1p3 - s2 * a4m6m5m7
-           c(j6+j,l) = s2 * a0p2m1p3 + c2 * a4m6m5m7
-           c(j1+j,l) = c1*(a0m2-a5p7)-s1*(a4p6+a1m3)
-           c(j5+j,l) = s1*(a0m2-a5p7)+c1*(a4p6+a1m3)
-           c(j3+j,l) = c3*(a0m2+a5p7)-s3*(a4p6-a1m3)
-           c(j7+j,l) = s3*(a0m2+a5p7)+c3*(a4p6-a1m3)
-           enddo
-           jbase=jbase+1
-        enddo
-        i0 = i0 + iink
-        i1 = i1 + iink
-        i2 = i2 - iink
-        i3 = i3 - iink
-        i4 = i4 + iink
-        i5 = i5 + iink
-        i6 = i6 - iink
-        i7 = i7 - iink
-        jbase=jbase+7*la
-450     continue
+               c(   j,l) = a0p2 + a1p3
+               c(j4+j,l) = a4m6 + a5m7
+               c(j2+j,l) = c2 * a0p2m1p3 - s2 * a4m6m5m7
+               c(j6+j,l) = s2 * a0p2m1p3 + c2 * a4m6m5m7
+               c(j1+j,l) = c1*(a0m2-a5p7)-s1*(a4p6+a1m3)
+               c(j5+j,l) = s1*(a0m2-a5p7)+c1*(a4p6+a1m3)
+               c(j3+j,l) = c3*(a0m2+a5p7)-s3*(a4p6-a1m3)
+               c(j7+j,l) = s3*(a0m2+a5p7)+c3*(a4p6-a1m3)
+            enddo
+            jbase=jbase+1
+         enddo
+         i0 = i0 + iink
+         i1 = i1 + iink
+         i2 = i2 - iink
+         i3 = i3 - iink
+         i4 = i4 + iink
+         i5 = i5 + iink
+         i6 = i6 - iink
+         i7 = i7 - iink
+         jbase=jbase+7*la
+      end do
 
       if (i1 <= i2) then
-         sin45=sqrt(0.5)
          do i=1,la
             j=jbase
             do l=1,lot
-            c(   j,l)=a(i0+i,l)+a(i1+i,l)
-            c(j1+j,l)=sin45*((a(i0+i,l)-a(i1+i,l))-(a(la+i0+i,l)+a(la+i1+i,l)))
-            c(j2+j,l)=a(la+i1+i,l)-a(la+i0+i,l)
-            c(j3+j,l)=-sin45*((a(i0+i,l)-a(i1+i,l))+(a(la+i0+i,l)+a(la+i1+i,l)))
+               c(   j,l)=a(i0+i,l)+a(i1+i,l)
+               c(j1+j,l)=sin45*((a(i0+i,l)-a(i1+i,l))-(a(la+i0+i,l)+a(la+i1+i,l)))
+               c(j2+j,l)=a(la+i1+i,l)-a(la+i0+i,l)
+               c(j3+j,l)=-sin45*((a(i0+i,l)-a(i1+i,l))+(a(la+i0+i,l)+a(la+i1+i,l)))
             enddo
             jbase=jbase+1
          enddo
       endif
+
       la = la * 4
-      return
       end subroutine ifft4
-
-!     ================
-!     SUBROUTINE IFFT2
-!     ================
-
-      subroutine ifft2(a,trigs,n,lot,la)
-      dimension a(n,lot),c(n,lot),trigs(n)
-
-      c(1,:) = 0.5 * a(1,:)
-      c(2,:) = c(1,:)
-
-      ia    =   3
-      ib    = n-1
-
-      do j = 3 , n-5 , 4
-         c1 = trigs(ia  )
-         s1 = trigs(ia+1)
-         do l=1,lot
-         amb = a(ia  ,l) - a(ib  ,l)
-         apb = a(ia+1,l) + a(ib+1,l)
-         c(j  ,l) = a(ia  ,l) + a(ib  ,l)
-         c(j+2,l) = a(ia+1,l) - a(ib+1,l)
-         c(j+1,l) = c1 * amb - s1 * apb
-         c(j+3,l) = s1 * amb + c1 * apb
-         enddo
-         ia = ia + 2
-         ib = ib - 2
-      enddo
-      c(n-1,:) =  a(ia  ,:)
-      c(n  ,:) = -a(ia+1,:)
-
-      a(:,:) = c(:,:)
-      la = 2
-      return
-      end subroutine ifft2
-
-!     ================
-!     SUBROUTINE IFFT3
-!     ================
-
-      subroutine ifft3(a,trigs,n,lot,la)
-      dimension a(n,lot),c(n,lot),trigs(n)
-      real, parameter :: SIN60 = 0.866025403784438D0
-
-      ib = 2 * (n/3) + 1
-
-      c(1,:) = 0.5 * a(1,:) + a(ib,:)
-      c(2,:) = 0.5 * a(1,:) - 0.5 * a(ib,:) - SIN60 * a(ib+1,:)
-      c(3,:) = 0.5 * a(1,:) - 0.5 * a(ib,:) + SIN60 * a(ib+1,:)
-
-      ia = 3
-      ic = ib - 2
-      ib = ib + 2
-
-      do j = 4 , n-8 , 6
-         c1 = trigs(ia  )
-         s1 = trigs(ia+1)
-         c2 = trigs(ia+ia-1)
-         s2 = trigs(ia+ia  )
-
-         do l = 1 , lot
-            hbpc = a(ia  ,l) - 0.5 * (a(ib  ,l) + a(ic  ,l))
-            hbmc = a(ia+1,l) - 0.5 * (a(ib+1,l) - a(ic+1,l))
-            sbmc = SIN60 * (a(ib  ,l) - a(ic  ,l))
-            sbpc = SIN60 * (a(ib+1,l) + a(ic+1,l))
-
-            c(j  ,l) = a(ia  ,l) + a(ib  ,l) + a(ic  ,l)
-            c(j+3,l) = a(ia+1,l) + a(ib+1,l) - a(ic+1,l)
-            c(j+1,l) = c1 * (hbpc-sbpc) - s1 * (hbmc+sbmc)
-            c(j+4,l) = s1 * (hbpc-sbpc) + c1 * (hbmc+sbmc)
-            c(j+2,l) = c2 * (hbpc+sbpc) - s2 * (hbmc-sbmc)
-            c(j+5,l) = s2 * (hbpc+sbpc) + c2 * (hbmc-sbmc)
-         enddo
-         ia = ia + 2
-         ib = ib + 2
-         ic = ic - 2
-      enddo
-
-      c(n-2,:) = a(ia,:)
-      c(n-1,:) =   0.5 * a(ia,:) - SIN60 * a(ia+1,:)
-      c(n  ,:) = - 0.5 * a(ia,:) - SIN60 * a(ia+1,:)
-
-      a(:,:)  = c(:,:)
-      la = 3
-      return
-      end subroutine ifft3
 
 !     ================
 !     SUBROUTINE IFFT8
 !     ================
 
       subroutine ifft8(a,c,n,lot)
+      implicit none
+      integer, intent(in) :: n, lot
+      real, dimension(n*lot), intent(inout) :: a, c
+
+      ! local
       real, parameter :: SQRT2 = 1.414213562373095D0
-      dimension a(n*lot),c(n*lot)
+      integer :: la, i0,i1,i2,i3,i4,i5,i6,i7
+      real :: a0p7,a0m7, a1p5,a1m5, a2p6,a2m6
+      real :: a0p7p3,a0p7m3, a0m7p4,a0m7m4, a1m5p2p6,a1m5m2p6
+      integer :: i
+
       la = n / 8
 
       do i=0,la*lot-1
@@ -615,5 +706,4 @@
          c(i5)  = a0m7m4 - a1m5m2p6
          c(i7)  = a0m7p4 + a1m5p2p6
       enddo
-      return
-      end
+      end subroutine ifft8
