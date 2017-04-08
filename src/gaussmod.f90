@@ -55,7 +55,10 @@ z0 = acos(p)
 z1 = 1.0
 z2 = 0.0
 
-if (k.ge.0) then !XW: avoid possibility of uninitialized use of z3
+!XW(2017-4-8): avoid possibility of uninitialized use of z3
+!here, I add "if (k.ge.0)" structure to avoid uninitializaion of z3"
+!if anything wrong with this, please remove the outter "if" structure.
+if (k.ge.0) then
 do j = k , 0 , -2
    z3 = z1 * cos(z0 * j)
    z2 = z2 + z3
