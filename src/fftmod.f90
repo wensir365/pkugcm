@@ -133,7 +133,7 @@
 !     SUBROUTINE DFFT2
 !     ================
 
-      subroutine dfft2(a,trigs,n)
+pure  subroutine dfft2(a,trigs,n)
       implicit none
       integer, intent(in) :: n
       real, dimension(n), intent(in) :: trigs
@@ -174,14 +174,14 @@
 !     SUBROUTINE DFFT3
 !     ================
 
-      subroutine dfft3(a,trigs,n)
+pure  subroutine dfft3(a,trigs,n)
       implicit none
       integer, intent(in) :: n
       real, dimension(n), intent(in) :: trigs
       real, dimension(n), intent(inout) :: a
 
       ! local
-      real, parameter :: SIN60 = 0.866025403784438D0
+      real(kind=8), parameter :: SIN60 = 0.866025403784438D0
       real, dimension(n) :: c(n)
       integer :: ja,jb,jc
       real :: c1,s1, c2,s2, a1,b1, a2,b2, a3,b3
@@ -234,7 +234,7 @@
 !     SUBROUTINE DFFT4
 !     ================
 
-      subroutine dfft4(a,trigs,n,lot,la)
+pure  subroutine dfft4(a,trigs,n,lot,la)
       implicit none
       integer, intent(in) :: n, lot
       integer, intent(inout) :: la
@@ -242,7 +242,7 @@
       real, dimension(n,lot), intent(inout) :: a
 
       ! local
-      real,parameter :: sin45=sqrt(0.5)
+      real,parameter :: SIN45=sqrt(0.5)
       real, dimension(n,lot) :: c
       integer :: i1,i2,i3,i4,i5,i6,i7, ibase
       integer :: j1,j2,j3,j4,j5,j6,j7, j0,jink
@@ -371,10 +371,11 @@
 !     SUBROUTINE DFFT8
 !     ================
 
-      subroutine dfft8(a,c,n,lot)
+pure  subroutine dfft8(a,c,n,lot)
       implicit none
       integer, intent(in) :: n, lot
-      real, dimension(n*lot), intent(inout) :: a, c
+      real, dimension(n*lot), intent(in)  :: a
+      real, dimension(n*lot), intent(out) :: c
 
       ! local
       integer :: la, i0,i1,i2,i3,i4,i5,i6,i7
@@ -426,7 +427,7 @@
 !     SUBROUTINE IFFT2
 !     ================
 
-      subroutine ifft2(a,trigs,n,lot,la)
+pure  subroutine ifft2(a,trigs,n,lot,la)
       implicit none
       integer, intent(in) :: n, lot
       integer, intent(inout) :: la
@@ -470,7 +471,7 @@
 !     SUBROUTINE IFFT3
 !     ================
 
-      subroutine ifft3(a,trigs,n,lot,la)
+pure  subroutine ifft3(a,trigs,n,lot,la)
       implicit none
       integer, intent(in) :: n, lot
       integer, intent(inout) :: la
@@ -531,7 +532,7 @@
 !     SUBROUTINE IFFT4
 !     ================
 
-      subroutine ifft4(c,trigs,n,lot,la)
+pure  subroutine ifft4(c,trigs,n,lot,la)
       implicit none
       integer, intent(in) :: n, lot
       integer, intent(inout) :: la
@@ -539,7 +540,7 @@
       real, dimension(n,lot), intent(inout) :: c
 
       ! local
-      real, parameter :: sin45=sqrt(0.5)
+      real, parameter :: SIN45=sqrt(0.5)
       real, dimension(n,lot) :: a
       integer :: m, kstop, kb, kc, kd
       integer :: i0,i1,i2,i3,i4,i5,i6,i7, iink
@@ -658,10 +659,11 @@
 !     SUBROUTINE IFFT8
 !     ================
 
-      subroutine ifft8(a,c,n,lot)
+pure  subroutine ifft8(a,c,n,lot)
       implicit none
       integer, intent(in) :: n, lot
-      real, dimension(n*lot), intent(inout) :: a, c
+      real, dimension(n*lot), intent(in)  :: a
+      real, dimension(n*lot), intent(out) :: c
 
       ! local
       real, parameter :: SQRT2 = 1.414213562373095D0
@@ -672,7 +674,14 @@
 
       la = n / 8
 
+      ! XW (2017/4/8) change to "do concurrent" structure to explicitly tell compiler it could be paralle
+      ! "do concurrent" came from F2008, better than "forall" in F95
+      ! it tell the compiler the loop body can be parallel and the in-loop tmp variables, such as i0-i7,
+      ! could be automatically recognized and distributted to each thread
+      ! BUT, "do concurrent" need to be supported in high version of gfortran (>6)
+
       do i=0,la*lot-1
+      !do concurrent (i=0:la*lot-1)
          i0 = (i/la) * n + mod(i,la) + 1
          i1 = i0 + la
          i2 = i1 + la
@@ -705,5 +714,5 @@
          c(i3)  = a0m7p4 - a1m5p2p6
          c(i5)  = a0m7m4 - a1m5m2p6
          c(i7)  = a0m7p4 + a1m5p2p6
-      enddo
+      end do
       end subroutine ifft8
