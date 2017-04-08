@@ -717,6 +717,7 @@ if (mypid == NROOT) then
      write(nud,'(" ****************************************************")')
    endif
    call restart_ini(lrestart,puma_restart)
+   call fftini(NLON)
    call inigau(NLAT,sid,gwd)
    call inilat
    call legpri

@@ -20,12 +20,15 @@
 !     T1365 - N4096 : 8-4-4-4-4-2
 
       integer :: lastn = 0
-      real, allocatable :: trigs(:) !XW: constant parameters to be set in fftini
+      real, allocatable :: trigs(:) !XW: trigs(NLON) constant fourier base functions to be set in fftini
       end module fftmod
 
 !     ================
 !     SUBROUTINE GP2FC
 !     ================
+
+! XW (2017/4/8): can parallel along with lot!!! 
+! lot:多少根纬线? (NLPP*NLEV); n:每根纬线上有多少点? (NLON)
 
       subroutine gp2fc(a,n,lot)
       use fftmod
@@ -34,12 +37,13 @@
       real, dimension(n,lot), intent(inout) :: a
       integer :: la,l
 
-      if (n /= lastn) then
-         if (allocated(trigs)) deallocate(trigs)
-         allocate(trigs(n))
-         lastn = n !XW: make fftini can be called for just ONCE
-         call fftini(n)
-      endif
+      !XW (2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
+      !if (n /= lastn) then
+      !   if (allocated(trigs)) deallocate(trigs)
+      !   allocate(trigs(n))
+      !   lastn = n !XW: make fftini can be called for just ONCE
+      !   call fftini(n)
+      !endif
 
       call dfft8(a,a,n,lot)
       la = n / 8
@@ -71,12 +75,13 @@
       real, dimension(n,lot), intent(inout) :: a
       integer :: nf,la
 
-      if (n /= lastn) then
-         if (allocated(trigs)) deallocate(trigs)
-         allocate(trigs(n))
-         lastn = n
-         call fftini(n) !XW: just call fftini ONCE
-      endif
+      !XW (2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
+      !if (n /= lastn) then
+      !   if (allocated(trigs)) deallocate(trigs)
+      !   allocate(trigs(n))
+      !   lastn = n
+      !   call fftini(n) !XW: just call fftini ONCE
+      !endif
 
       nf = n/8
       do while (nf >= 4)
@@ -120,6 +125,12 @@
          stop
       endif
  1000 format(' NLON=',I5,'  NLAT=',I5,'  NTRU=',I5)
+
+      ! XW (2017/4/8): 
+      ! adding two lines below, to
+      ! remove calling from gp2fc/fc2gp to prolog in puma.f90, just once!
+      allocate(trigs(n))
+      lastn = n
 
       del = 4.0 * asin(1.0) / n
       do k=0,n/2-1
@@ -371,7 +382,7 @@ pure  subroutine dfft4(a,trigs,n,lot,la)
 !     SUBROUTINE DFFT8
 !     ================
 
-pure  subroutine dfft8(a,c,n,lot)
+      subroutine dfft8(a,c,n,lot)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n*lot), intent(in)  :: a
@@ -388,6 +399,10 @@ pure  subroutine dfft8(a,c,n,lot)
       z  = 1.0 / n
       zsin45 = z * sqrt(0.5)
 
+      ! XW (2017/4/8): Parallel HERE!!!
+      !$OMP parallel do private(i0,i1,i2,i3,i4,i5,i6,i7, &
+      !$OMP                     a0p4,a1p5,a2p6,a3p7, a5m1,a7m3,a0m4,a6m2, &
+      !$OMP                     a0p4p2p6, a1p5p3p7, a7m3p5m1, a7m3m5m1)
       do i=0,la*lot-1
          i0 = (i/la) * n + mod(i,la) + 1
          i1 = i0 + la
@@ -421,6 +436,7 @@ pure  subroutine dfft8(a,c,n,lot)
          c(i2) = a7m3p5m1 + a6m2
          c(i6) = a7m3p5m1 - a6m2
       enddo
+      !$OMP end parallel do
       end subroutine dfft8
 
 !     ================
@@ -659,7 +675,7 @@ pure  subroutine ifft4(c,trigs,n,lot,la)
 !     SUBROUTINE IFFT8
 !     ================
 
-pure  subroutine ifft8(a,c,n,lot)
+      subroutine ifft8(a,c,n,lot)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n*lot), intent(in)  :: a
@@ -678,10 +694,13 @@ pure  subroutine ifft8(a,c,n,lot)
       ! "do concurrent" came from F2008, better than "forall" in F95
       ! it tell the compiler the loop body can be parallel and the in-loop tmp variables, such as i0-i7,
       ! could be automatically recognized and distributted to each thread
-      ! BUT, "do concurrent" need to be supported in high version of gfortran (>6)
+      ! BUT, "do concurrent" is supported only in high version of gfortran (>6)
 
+      ! XW (2017/4/8): Parallel HERE!!! use OpenMP instead
+      !$OMP parallel do private(i0,i1,i2,i3,i4,i5,i6,i7, &
+      !$OMP                     a0p7,a0m7, a1p5,a1m5, a2p6,a2m6, &
+      !$OMP                     a0p7p3,a0p7m3, a0m7p4,a0m7m4, a1m5p2p6,a1m5m2p6 )
       do i=0,la*lot-1
-      !do concurrent (i=0:la*lot-1)
          i0 = (i/la) * n + mod(i,la) + 1
          i1 = i0 + la
          i2 = i1 + la
@@ -715,4 +734,5 @@ pure  subroutine ifft8(a,c,n,lot)
          c(i5)  = a0m7m4 - a1m5m2p6
          c(i7)  = a0m7p4 + a1m5p2p6
       end do
+      !$OMP end parallel do
       end subroutine ifft8
