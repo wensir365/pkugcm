@@ -1,5 +1,9 @@
 # Change Log
 
+## 2017-Apr-8: Clean fftmod.f90, gaussmod.f90, and legsym.f90
+
+Format these 3 files with F95 standard. Try to mark some PURE subroutines in fftmod.f90. I would like to do so to facilitate adding OpenACC directives next.
+
 ## 2017-Apr-7: Install PGI Community Edition and test NVIDIA GTX-1060
 
 Install the free community edition of PGI compilers, with support of OpenACC working with NVIDIA GPUs. I received the basic information about my GTX-1060 card via command "pgaccelinfo":

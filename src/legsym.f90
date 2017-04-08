@@ -20,14 +20,14 @@ integer :: nlat
 integer :: nlev
 real    :: plavor
 
-real   , allocatable :: qi(:,:) ! P(m,n) = Associated Legendre Polynomials
-real   , allocatable :: qj(:,:) ! Q(m,n) = Used for d/d(mu)
-real   , allocatable :: qc(:,:) ! P(m,n) * gwd              used in fc2sp
-real   , allocatable :: qe(:,:) ! Q(mn,) * gwd / cos2       used in mktend
+real   , allocatable :: qi(:,:) ! P(m,n) = Associated Legendre Polynomials, used in sp2fc
+real   , allocatable :: qj(:,:) ! Q(m,n) = Used for d/d(mu)                 used in sp2fcdmu
+real   , allocatable :: qc(:,:) ! P(m,n) * gwd                              used in fc2sp
+real   , allocatable :: qe(:,:) ! Q(mn,) * gwd / cos2                       used in mktend
 real   , allocatable :: qq(:,:) ! P(m,n) * gwd / cos2 * n * (n+1) / 2  "
-real   , allocatable :: qu(:,:) ! P(m,n) / (n*(n+1)) * m    used in dv2uv
-real   , allocatable :: qv(:,:) ! Q(m,n) / (n*(n+1))        used in dv2uv
-complex, allocatable :: qx(:,:) ! P(m,n) * gwd / cos2 * m   used in mktend
+real   , allocatable :: qu(:,:) ! P(m,n) / (n*(n+1)) * m                    used in dv2uv
+real   , allocatable :: qv(:,:) ! Q(m,n) / (n*(n+1))                        used in dv2uv
+complex, allocatable :: qx(:,:) ! P(m,n) * gwd / cos2 * m                   used in mktend
 end module legsym
 
 ! =================
@@ -154,7 +154,7 @@ do jlat = 1 , nhpp
    enddo ! m
 enddo ! jlat
 return
-end
+end subroutine legini
 
 
 ! ================
@@ -164,9 +164,9 @@ end
 subroutine fc2sp(fc,sp)
 use legsym
 implicit none
-complex, intent(in ) :: fc(nlon,nhpp)
-complex, intent(out) :: sp(nesp/2)
-
+complex, dimension(nlon,nhpp), intent(in ) :: fc
+complex, dimension(nesp/2),    intent(out) :: sp
+! local
 integer :: l ! Index for latitude
 integer :: m ! Index for zonal wavenumber
 integer :: w ! Index for spherical harmonic
@@ -178,13 +178,12 @@ do l = 1 , nhpp
    w = 1
    do m = 1 , ntp1
       e = w + ntp1 - m
-      sp(w  :e:2) = sp(w  :e:2) + qc(w  :e:2,l) * (fc(m,l) + fc(m+nlat,l))
+      sp(w  :e:2) = sp(w  :e:2) + qc(w  :e:2,l) * (fc(m,l) + fc(m+nlat,l)) ! XW: qc derived from module "legsym"
       sp(w+1:e:2) = sp(w+1:e:2) + qc(w+1:e:2,l) * (fc(m,l) - fc(m+nlat,l))
       w = e + 1
    enddo ! m
 enddo ! l
-return
-end
+end subroutine fc2sp
 
 
 ! ================
@@ -194,15 +193,13 @@ end
 subroutine sp2fc(sp,fc) ! Spectral to Fourier
 use legsym
 implicit none
-
-complex :: sp(ncsp)      ! Coefficients of spherical harmonics
-complex :: fc(nlon,nhpp) ! Fourier coefficients
-
+complex, dimension(ncsp),      intent(in ) :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
+! local
 integer :: l ! Loop index for latitude
 integer :: m ! Loop index for zonal wavenumber m
 integer :: w ! Index for spectral mode
 integer :: e ! Index for last wavenumber
-
 complex :: fs,fa
 
 fc(:,:) = (0.0,0.0)
@@ -211,15 +208,14 @@ do l = 1 , nhpp
   w = 1  
   do m = 1 ,ntp1
     e = w + ntp1 - m
-    fs = dot_product(qi(w  :e:2,l),sp(w  :e:2))
+    fs = dot_product(qi(w  :e:2,l),sp(w  :e:2)) ! XW: qi derived from module "legsym"
     fa = dot_product(qi(w+1:e:2,l),sp(w+1:e:2))
     fc(m     ,l) = fs + fa
     fc(m+nlat,l) = fs - fa
     w = e + 1
   enddo ! m
 enddo ! l
-return
-end
+end subroutine sp2fc
 
 
 ! ===================
@@ -229,15 +225,13 @@ end
 subroutine sp2fcdmu(sp,fc) ! Spectral to Fourier d/dmu
 use legsym
 implicit none
-
-complex :: sp(ncsp)      ! Coefficients of spherical harmonics
-complex :: fc(nlon,nhpp) ! Fourier coefficients
-
+complex, dimension(ncsp),      intent(in)  :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
+! local
 integer :: l ! Loop index for latitude
 integer :: m ! Loop index for zonal wavenumber m
 integer :: w ! Index for spectral mode
 integer :: e ! Index for last wavenumber
-
 complex :: fs,fa
 
 fc(:,:) = (0.0,0.0)
@@ -253,8 +247,7 @@ do l = 1 , nhpp
     w = e + 1
   enddo ! m
 enddo ! l
-return
-end
+end subroutine sp2fcdmu
 
 
 ! ================
@@ -308,7 +301,7 @@ do l = 1 , nhpp
 enddo ! l
 pz(2) = zsave
 return
-end
+end subroutine dv2uv_alt
 
 
 ! ================
@@ -419,8 +412,7 @@ do l = 1 , nhpp
    enddo ! m
 enddo ! l
 pz(1,2) = zsave ! Restore pz to absolute vorticity
-return
-end
+end subroutine dv2uv
 
 
 ! =================
@@ -473,8 +465,7 @@ do l = 1 , nhpp  ! process pairs of Nort-South latitudes
       w = e + 1
    enddo ! m
 enddo ! l
-return
-end
+end subroutine mktend
 
 
 ! ================
@@ -514,7 +505,7 @@ do l = 1 , nhpp  ! process pairs of Nort-Souqh latitudes
    enddo ! m 
 enddo ! l 
 return
-end
+end subroutine qtend_old
 
 
 ! ================
@@ -555,9 +546,7 @@ do l = 1 , nhpp   ! process pairs of Nort-Souqh latitudes
       w = e + 1 
    enddo ! m 
 enddo ! l 
-
-return
-end 
+end subroutine uv2dv
 
 
 ! ==================
@@ -568,21 +557,18 @@ subroutine reg2alt(pr,klev)
 use legsym
 implicit none
 
-real :: pr(nlon,nlat,klev)
-real :: pa(nlon,nlat,klev)
-
+integer, intent(in) :: klev
+real, dimension(nlon,nlat,klev), intent(inout) :: pr(nlon,nlat,klev)
+! local
+real, dimension(nlon,nlat,klev) :: pa
 integer :: jlat
-integer :: klev
 
 do jlat = 1 , nlat / 2
   pa(:,2*jlat-1,:) = pr(:,jlat       ,:)
   pa(:,2*jlat  ,:) = pr(:,nlat-jlat+1,:)
 enddo
-
 pr = pa
-
-return
-end
+end subroutine reg2alt
 
 
 ! ==================
@@ -593,62 +579,56 @@ subroutine alt2reg(pa,klev)
 use legsym
 implicit none
 
-real :: pa(nlon,nlat,klev)
-real :: pr(nlon,nlat,klev)
-
+integer, intent(in) :: klev
+real, dimension(nlon,nlat,klev), intent(inout) :: pa
+! local
+real, dimension(nlon,nlat,klev) :: pr
 integer :: jlat
-integer :: klev
 
 do jlat = 1 , nlat / 2
   pr(:,jlat       ,:) = pa(:,2*jlat-1,:)
   pr(:,nlat-jlat+1,:) = pa(:,2*jlat  ,:)
 enddo
-
 pa = pr
-
-return
-end
+end subroutine alt2reg
 
 
 ! ================
 ! SUBROUTINE ALTCS
+! XW: Alternative Cross-Section
 ! ================
 
 subroutine altcs(pcs)
 use legsym
 implicit none
-real :: pcs(nlat,nlev)
-real :: pal(nlat,nlev)
+real, dimension(nlat,nlev), intent(inout) :: pcs
+real, dimension(nlat,nlev) :: pal
 integer :: jlat
 
 do jlat = 1 , nlat / 2
   pal(jlat       ,:) = pcs(2*jlat-1,:)
   pal(nlat-jlat+1,:) = pcs(2*jlat  ,:)
 enddo
-
 pcs = pal
-
-return
-end
+end subroutine altcs
 
 
 ! =================
 ! SUBROUTINE ALTLAT 
+! Alternative Latitude
 ! =================
 
 subroutine altlat(pr,klat)
 implicit none
+integer, intent(in) :: klat
+real, dimension(klat), intent(inout) :: pr  ! regular     grid
+! local
+real, dimension(klat) :: pa  ! alternating grid
 integer :: jlat
-integer :: klat
-real    :: pr(klat)  ! regular     grid
-real    :: pa(klat)  ! alternating grid
 
 do jlat = 1 , klat / 2
   pa(2*jlat-1) = pr(jlat       )
   pa(2*jlat  ) = pr(klat-jlat+1)
 enddo
-
-pr(:) = pa(:)
-
-return
+pr = pa
 end
