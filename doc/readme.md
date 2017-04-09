@@ -1,5 +1,18 @@
 # Change Log
 
+## 2017-Apr-9: OpenMP works!
+
+With OpenMP directives inserted in the "gridpoint" subroutine of puma.f90, the performance looks not very scalable, detailed test info on pkuclimate.club are as followings:
+
+gfortran with -O3 and -fopenmp, run for 2 years under T21.
+
+| gfortran -O3 -fopenmp      | 1 CPU | 2 CPU | 3 CPU | 4 CPU |
+|:---------------------------|------:|------:|------:|------:|
+| total seconds (2-year/T21) |    99 |    68 |    80 |    80 |
+| simulate # yr/day          |  1749 |  2523 |  2180 |  2160 |
+
+Seems 2 CPU make the best shot!
+
 ## 2017-Apr-8: Clean fftmod.f90, gaussmod.f90, and legsym.f90
 
 Format these 3 files with F95 standard. Try to mark some PURE subroutines in fftmod.f90. I would like to do so to facilitate adding OpenACC directives next.
