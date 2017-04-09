@@ -378,8 +378,8 @@ real, allocatable :: xlt(:,:)         ! matrix LT (tau)
 integer :: myworld = 0                   ! MPI variable
 integer :: mpinfo  = 0                   ! MPI variable
 integer :: mypid   = 0                   ! My Process Id
-real    :: tmstart = 0.0                 ! CPU time at start
-real    :: tmstop  = 0.0                 ! CPU time at stop
+real(kind=8)    :: tmstart = 0.0                 ! CPU time at start
+real(kind=8)    :: tmstop  = 0.0                 ! CPU time at stop
 character(80), allocatable :: ympname(:) ! Processor name
 
 
@@ -695,7 +695,7 @@ character(80) :: pumaversion = '16.0 (27-Sep-2010)'
 real :: zsig(nlon*nlat)
 
 if (mypid == NROOT) then
-   call cpu_time(tmstart)
+   call mastercpu_time(tmstart)   ! XW(2017/4/9): replace cpu_time(tmstart) to accurate OpenMP time cost
    write(nud,'(/," ****************************************************")')
    write(nud,'(" * PUMA ",a43," *")') trim(pumaversion)
    write(nud,'(" ****************************************************")')
@@ -1052,7 +1052,7 @@ end subroutine master
          !XW/Mar-23-2017: this line need to call a function in pumax.c
          !ires = nresources(zut,zst,imem,ipr,ipf,isw,idr,idw)
 
-         call cpu_time(tmstop)
+         call mastercpu_time(tmstop)   ! XW(2017/4/9): replace cpu_time(tmstop)
          tmrun = tmstop - tmstart
 
          if (nstep > nstep1) then 
@@ -3103,18 +3103,31 @@ end subroutine master
       real, dimension(NLAT,NLEV)      :: zcs  !XW(2017-4-7): remove "(kind=4)" for zcs and zsp
       real, dimension(NRSP)           :: zsp
 
+      !$OMP parallel
+
+      !$OMP sections
+      !$OMP section
       do jlev = 1 , NLEV
          call sp2fc(sd(1,jlev),gd(1,jlev))
+      end do
+      !$OMP section
+      do jlev = 1 , NLEV
          call sp2fc(st(1,jlev),gt(1,jlev))
+      end do
+      !$OMP section
+      do jlev = 1 , NLEV
          call sp2fc(sz(1,jlev),gz(1,jlev))
       enddo
 
-      call sp2fc(sp,gp)             ! LnPs
-      call sp2fcdmu(sp,gpj)         ! d(lnps) / d(mu)
-!     divergence, vorticity -> u*cos(phi), v*cos(phi)
+      !$OMP section
+      call sp2fc(sp,gp)                                          ! LnPs
+      call sp2fcdmu(sp,gpj)                                      ! d(lnps) / d(mu)
       do jlev = 1 , NLEV
-         call dv2uv(sd(1,jlev),sz(1,jlev),gu(1,jlev),gv(1,jlev))
+         call dv2uv(sd(1,jlev),sz(1,jlev),gu(1,jlev),gv(1,jlev)) ! div,vor->ucos(phi),vcos(phi)
       enddo
+      !$OMP end sections
+
+      !$OMP single
       if (lselect) then
          call filter_zonal_waves(gp)
          call filter_zonal_waves(gpj)
@@ -3137,36 +3150,60 @@ end subroutine master
           enddo
         enddo
       endif
+      !$OMP end single
 
+      !$OMP do collapse(2)
       do jlat = 1 , NLPP
          do jlon = 1 , NLON-1 , 2
            gpmt(jlon  ,jlat) = -gp(jlon+1+(jlat-1)*NLON) * ((jlon-1)/2)
            gpmt(jlon+1,jlat) =  gp(jlon  +(jlat-1)*NLON) * ((jlon-1)/2)
          end do
       end do
+      !$OMP end do
 
+      !$OMP sections
+      !$OMP section
       call fc2gp(gu ,NLON,NLPP*NLEV)
+      !$OMP section
       call fc2gp(gv ,NLON,NLPP*NLEV)
+      !$OMP section
       call fc2gp(gt ,NLON,NLPP*NLEV)
+      !$OMP section
       call fc2gp(gd ,NLON,NLPP*NLEV)
+      !$OMP section
       call fc2gp(gz ,NLON,NLPP*NLEV)
+      !$OMP section
       call fc2gp(gpj,NLON,NLPP)
+      !$OMP section
       call fc2gp(gpmt,NLON,NLPP)
+      !$OMP end sections
 
+      !$OMP single
       call calcgp(gtn,gpmt,gvpp)
 
       gut(:,:) = gu(:,:) * gt(:,:)
       gvt(:,:) = gv(:,:) * gt(:,:)
       gke(:,:) = gu(:,:) * gu(:,:) + gv(:,:) * gv(:,:)
+      !$OMP end single
 
+      !$OMP sections
+      !$OMP section
       call gp2fc(gtn ,NLON,NLPP*NLEV)
+      !$OMP section
       call gp2fc(gut ,NLON,NLPP*NLEV)
+      !$OMP section
       call gp2fc(gvt ,NLON,NLPP*NLEV)
+      !$OMP section
       call gp2fc(gfv ,NLON,NLPP*NLEV)
+      !$OMP section
       call gp2fc(gfu ,NLON,NLPP*NLEV)
+      !$OMP section
       call gp2fc(gke ,NLON,NLPP*NLEV)
+      !$OMP section
       call gp2fc(gvpp,NLON,NLPP     )
+      !$OMP end sections
 
+      !$OMP single
       call fc2sp(gvpp,spf)
 
       if (lselect) then
@@ -3180,11 +3217,15 @@ end subroutine master
             call filter_zonal_waves(gke(1,jlev))
          enddo
       endif
+      !$OMP end single
 
+      !$OMP do
       do jlev = 1 , NLEV
          call mktend(sdf(1,jlev),stf(1,jlev),szf(1,jlev),gtn(1,1,jlev),&
-         gfu(1,jlev),gfv(1,jlev),gke(1,jlev),gut(1,jlev),gvt(1,jlev))
+                     gfu(1,jlev),gfv(1,jlev),gke(1,jlev),gut(1,jlev),gvt(1,jlev))
       enddo
+      !$OMP end do
+      !$OMP end parallel
 
       if (nruido > 0) call stepruido
       call mpsumsc(spf,spt,1)
@@ -4637,4 +4678,16 @@ end subroutine master
 !
       return
       end
+
+      ! Compute mastercpu time
+      ! XW(2017/4/9)
+      subroutine mastercpu_time(x)
+      implicit none
+      real(kind=8), intent(out) :: x
+      ! local
+      integer, dimension(8) :: v
+      call date_and_time(values=v)
+      ! count from the begining of THIS month
+      x = 86400.0*v(3)+3600.0*v(5)+60.0*v(6)+v(7)+v(8)/1000.0
+      end subroutine mastercpu_time
 

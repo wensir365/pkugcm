@@ -382,7 +382,7 @@ pure  subroutine dfft4(a,trigs,n,lot,la)
 !     SUBROUTINE DFFT8
 !     ================
 
-      subroutine dfft8(a,c,n,lot)
+pure  subroutine dfft8(a,c,n,lot)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n*lot), intent(in)  :: a
@@ -399,10 +399,10 @@ pure  subroutine dfft4(a,trigs,n,lot,la)
       z  = 1.0 / n
       zsin45 = z * sqrt(0.5)
 
-      ! XW (2017/4/8): Parallel HERE!!!
-      !$OMP parallel do private(i0,i1,i2,i3,i4,i5,i6,i7, &
-      !$OMP                     a0p4,a1p5,a2p6,a3p7, a5m1,a7m3,a0m4,a6m2, &
-      !$OMP                     a0p4p2p6, a1p5p3p7, a7m3p5m1, a7m3m5m1)
+      ! XW (2017/4/8): Parallel HERE!!!  but very bad performance
+      !$--OMP-- parallel do private(i0,i1,i2,i3,i4,i5,i6,i7, &
+      !$--OMP--                     a0p4,a1p5,a2p6,a3p7, a5m1,a7m3,a0m4,a6m2, &
+      !$--OMP--                     a0p4p2p6, a1p5p3p7, a7m3p5m1, a7m3m5m1)
       do i=0,la*lot-1
          i0 = (i/la) * n + mod(i,la) + 1
          i1 = i0 + la
@@ -436,7 +436,7 @@ pure  subroutine dfft4(a,trigs,n,lot,la)
          c(i2) = a7m3p5m1 + a6m2
          c(i6) = a7m3p5m1 - a6m2
       enddo
-      !$OMP end parallel do
+      !$--OMP-- end parallel do
       end subroutine dfft8
 
 !     ================
@@ -675,7 +675,7 @@ pure  subroutine ifft4(c,trigs,n,lot,la)
 !     SUBROUTINE IFFT8
 !     ================
 
-      subroutine ifft8(a,c,n,lot)
+pure  subroutine ifft8(a,c,n,lot)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n*lot), intent(in)  :: a
@@ -697,9 +697,9 @@ pure  subroutine ifft4(c,trigs,n,lot,la)
       ! BUT, "do concurrent" is supported only in high version of gfortran (>6)
 
       ! XW (2017/4/8): Parallel HERE!!! use OpenMP instead
-      !$OMP parallel do private(i0,i1,i2,i3,i4,i5,i6,i7, &
-      !$OMP                     a0p7,a0m7, a1p5,a1m5, a2p6,a2m6, &
-      !$OMP                     a0p7p3,a0p7m3, a0m7p4,a0m7m4, a1m5p2p6,a1m5m2p6 )
+      !$--OMP-- parallel do private(i0,i1,i2,i3,i4,i5,i6,i7, &
+      !$--OMP--                     a0p7,a0m7, a1p5,a1m5, a2p6,a2m6, &
+      !$--OMP--                     a0p7p3,a0p7m3, a0m7p4,a0m7m4, a1m5p2p6,a1m5m2p6 )
       do i=0,la*lot-1
          i0 = (i/la) * n + mod(i,la) + 1
          i1 = i0 + la
@@ -734,5 +734,5 @@ pure  subroutine ifft4(c,trigs,n,lot,la)
          c(i5)  = a0m7m4 - a1m5m2p6
          c(i7)  = a0m7p4 + a1m5p2p6
       end do
-      !$OMP end parallel do
+      !$--OMP-- end parallel do
       end subroutine ifft8
