@@ -2,16 +2,16 @@
 
 ## 2017-Apr-9: OpenMP works!
 
-With OpenMP directives inserted in the "gridpoint" subroutine of puma.f90, the performance looks not very scalable, detailed test info on pkuclimate.club are as followings:
+With OpenMP directives inserted in the "gridpoint" subroutine of puma.f90, OpenMP paralleling works now! But the performance looks not very scalable, detailed test info on pkuclimate.club are as follows:
 
-gfortran with -O3 and -fopenmp, run for 2 years under T21.
+Arguments: gfortran with -O3 and -fopenmp options, running for 2 years under T21.
 
 | gfortran -O3 -fopenmp      | 1 CPU | 2 CPU | 3 CPU | 4 CPU |
 |:---------------------------|------:|------:|------:|------:|
 | total seconds (2-year/T21) |    99 |    68 |    80 |    80 |
 | simulate # yr/day          |  1749 |  2523 |  2180 |  2160 |
 
-Seems 2 CPU make the best shot!
+Seems 2 CPUs make the best shot! Not satisfied, need to find more room to improve further.
 
 ## 2017-Apr-8: Clean fftmod.f90, gaussmod.f90, and legsym.f90
 
