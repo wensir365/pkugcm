@@ -165,8 +165,10 @@ Seems 2 CPUs make the best shot! Not satisfied, need to find more room to improv
 |:---------------------------|------:|------:|------:|------:|------:|------:|------:|------:|
 | total seconds (2-year/T21) |    41 |    28 |    27 |    22 |    34 |    26 |    29 |    27 |
 | simulate # yr/day          |  4221 |  6199 |  6460 |  7596 |  5139 |  6552 |  6050 |  6400 |
+| total seconds (1-year/T42) |   275 |   185 |   169 |   140 |       |       |       |       |
+| simulate # yr/day          |   314 |   467 |   511 |   619 |       |       |       |       |
 
-The speed-up ratio on 4 processors reachs the best of 1.8.
+The speed-up ratio on 4 processors reachs the best of 1.8 (T21) or 1.95 (T42).
 
 
 ## 2017-Apr-8: Clean fftmod.f90, gaussmod.f90, and legsym.f90
