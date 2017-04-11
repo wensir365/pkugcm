@@ -1,9 +1,0 @@
-#!/bin/tcsh
-
-# T21
-./puma.x 32 10
-#mpiexec -np 4 puma.x 32 10
-
-# T42
-#./puma.x 64 10
-#mpiexec -np 4 puma.x 64 10
