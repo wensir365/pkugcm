@@ -29,7 +29,7 @@ FFTMOD	= fftmod
 #====================
 # 3. Compile
 #====================
-OBJ=${MPIMOD}.o ${FFTMOD}.o puma.o legsym.o restartmod.o gaussmod.o
+OBJ=${MPIMOD}.o ${FFTMOD}.o puma.o legsym.o restartmod.o
 
 %.o : %.f90
 	${F90} $(FLAGS) -c $<
@@ -42,7 +42,6 @@ ${FFTMOD}.o:	${FFTMOD}.f90
 ${MPIMOD}.o:	${MPIMOD}.f90 puma.o
 legsym.o:	legsym.f90
 restartmod.o:	restartmod.f90
-gaussmod.o:	gaussmod.f90
 
 #====================
 # 4. Clean
