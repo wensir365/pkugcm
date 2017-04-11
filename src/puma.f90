@@ -719,7 +719,7 @@ if (mypid == NROOT) then
      write(nud,'(" ****************************************************")')
    endif
    call restart_ini(lrestart,puma_restart)
-   call fftini(NLON)
+   !call fftini(NLON) XW(2017/4/11): I added this line incorrectly. Affect MPI.
    call inigau(NLAT,sid,gwd)
    call inilat
    call legpri

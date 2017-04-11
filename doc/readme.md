@@ -1,5 +1,11 @@
 # Change Log
 
+## 2017-Apr-11: Fix MPI problem
+
+Fix an important bug in mod_fft.f90 which induce running problem with MPI. A couple of days ago, I thought "fftini" (fftmod.f90) just need to be called for once. Thus, I add a line in "prolog" (puma.f90) to call "fftini" for just one time, and remove corresponding code from "gp2fc" and "fc2gp" in fftmod.f90. Today, I turn those work back. MPI function works fine again. Thank god!
+
+Moreover, I rename all the module files to "mod_xxxxxx.f90" except for puma.f90.
+
 ## 2017-Apr-9: New Profiling with OpenMP
 
 At pkuclimate.club, a new profiling with 2-thread OpenMP was performed as below. Got any clue? Seems useless...  :(

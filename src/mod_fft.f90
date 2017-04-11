@@ -37,13 +37,14 @@
       real, dimension(n,lot), intent(inout) :: a
       integer :: la,l
 
-      !XW (2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
-      !if (n /= lastn) then
-      !   if (allocated(trigs)) deallocate(trigs)
-      !   allocate(trigs(n))
-      !   lastn = n !XW: make fftini can be called for just ONCE
-      !   call fftini(n)
-      !endif
+      !XW(2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
+      !XW(2017/4/11): above is WRONG!!! causing MPI segmentation fault. recover it back!!!
+      if (n /= lastn) then
+         if (allocated(trigs)) deallocate(trigs)
+         allocate(trigs(n))
+         lastn = n !XW: make fftini can be called for just ONCE
+         call fftini(n)
+      endif
 
       call dfft8(a,a,n,lot)
       la = n / 8
@@ -76,12 +77,13 @@
       integer :: nf,la
 
       !XW (2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
-      !if (n /= lastn) then
-      !   if (allocated(trigs)) deallocate(trigs)
-      !   allocate(trigs(n))
-      !   lastn = n
-      !   call fftini(n) !XW: just call fftini ONCE
-      !endif
+      !XW(2017/4/11): above is WRONG!!! causing MPI segmentation fault. recover it back!!!
+      if (n /= lastn) then
+         if (allocated(trigs)) deallocate(trigs)
+         allocate(trigs(n))
+         lastn = n
+         call fftini(n) !XW: just call fftini ONCE
+      endif
 
       nf = n/8
       do while (nf >= 4)
@@ -129,8 +131,9 @@
       ! XW (2017/4/8): 
       ! adding two lines below, to
       ! remove calling from gp2fc/fc2gp to prolog in puma.f90, just once!
-      allocate(trigs(n))
-      lastn = n
+      !allocate(trigs(n))
+      !lastn = n
+      !XW(2017/4/11): above is WRONG!!! causing MPI segmentation fault. remove them!!!
 
       del = 4.0 * asin(1.0) / n
       do k=0,n/2-1
