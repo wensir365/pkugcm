@@ -453,31 +453,33 @@ end type ppp_type
 type(ppp_type) :: ppp_tab(30)
 
 contains
-   subroutine ppp_def_int(pname,nvar,ndim)
-   character (*)  :: pname
-   integer,target :: nvar(ndim)
 
-   num_ppp = num_ppp + 1
-   ppp_tab(num_ppp)%name  =  '[' // trim(pname) // ']'
-   ppp_tab(num_ppp)%isint =  .true.
-   ppp_tab(num_ppp)%n     =  ndim
-   ppp_tab(num_ppp)%pint  => nvar
-   ppp_tab(num_ppp)%preal => null()
-   return
+   subroutine ppp_def_int(pname,nvar,ndim)
+      character (*)  :: pname
+      integer,target :: nvar(ndim)
+
+      num_ppp = num_ppp + 1
+      ppp_tab(num_ppp)%name  =  '[' // trim(pname) // ']'
+      ppp_tab(num_ppp)%isint =  .true.
+      ppp_tab(num_ppp)%n     =  ndim
+      ppp_tab(num_ppp)%pint  => nvar
+      ppp_tab(num_ppp)%preal => null()
+      return
    end subroutine ppp_def_int
 
    subroutine ppp_def_real(pname,rvar,ndim)
-   character (*)  :: pname
-   real   ,target :: rvar(ndim)
+      character (*)  :: pname
+      real   ,target :: rvar(ndim)
 
-   num_ppp = num_ppp + 1
-   ppp_tab(num_ppp)%name  =  '[' // trim(pname) // ']'
-   ppp_tab(num_ppp)%isint =  .false.
-   ppp_tab(num_ppp)%n     =  ndim
-   ppp_tab(num_ppp)%pint  => null()
-   ppp_tab(num_ppp)%preal => rvar
-   return
+      num_ppp = num_ppp + 1
+      ppp_tab(num_ppp)%name  =  '[' // trim(pname) // ']'
+      ppp_tab(num_ppp)%isint =  .false.
+      ppp_tab(num_ppp)%n     =  ndim
+      ppp_tab(num_ppp)%pint  => null()
+      ppp_tab(num_ppp)%preal => rvar
+      return
    end subroutine ppp_def_real
+
 end module prepmod
 
 
