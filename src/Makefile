@@ -6,8 +6,9 @@
 #=====================
 # GNU gfortran
 F90    = gfortran
-#FLAGS  = -O3 -fdefault-real-8 -ffree-line-length-none #-Wall #-pg
-FLAGS  = -O3 -ffree-line-length-none -fopenmp #-Wall #-pg 
+FLAGS  = -O3 -fopenmp #-Wall #-pg 
+OTHERS = #-ffree-line-length-none
+USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
 
 # PGI pgfortran
 #F90    = pgfortran
@@ -30,7 +31,7 @@ MPIMOD	= mod_mpi
 OBJ=${MPIMOD}.o mod_fft.o puma.o mod_legsym.o mod_restart.o
 
 %.o : %.f90
-	${F90} $(FLAGS) -c $<
+	${F90} $(FLAGS) $(OTHERS) -c $<
 
 puma.x:	$(OBJ)
 	${F90} $(FLAGS) -o puma.x $(OBJ)
