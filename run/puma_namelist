@@ -1,6 +1,6 @@
  &puma_nl
  NOUTPUT =     1
- NGUI    =     1
+ NGUI    =     0
  TAC     =   360.0000
  PAC     =     0.0000
  NYEARS  =     2

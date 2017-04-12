@@ -17,12 +17,12 @@ FLAGS  = -O3 -ffree-line-length-none -fopenmp #-Wall #-pg
 # 2. if MPI?
 #=====================
 # No
-MPIMOD	= mod_mpi_stub
+#MPIMOD	= mod_mpi_stub
 
 # Yes
-#F90	= mpif90
-#FLAGS  = -O3
-#MPIMOD	= mod_mpi
+F90	= mpif90
+FLAGS  = -O3
+MPIMOD	= mod_mpi
 
 #====================
 # 3. Compile
