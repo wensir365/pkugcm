@@ -6,24 +6,31 @@
 #=====================
 # GNU gfortran
 F90    = gfortran
-FLAGS  = -O3 -fopenmp #-Wall #-pg 
-OTHERS = #-ffree-line-length-none
-USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
+FLAGS  = -O3 #-fopenmp #-Wall #-pg 
+OTHERS = -ffree-line-length-none
+#USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
 
 # PGI pgfortran
 #F90    = pgfortran
 #FLAGS  = -r8 -O2 ‑Ktrap=fp,ovf,unf,inexact #-Kieee
 
+# Intel ifort
+#F90    = ifort
+#FLAGS  = -fast
+#OTHERS =
+#OTHERS = -qopenmp
+#USELESS= -parallel
+
 #=====================
 # 2. if MPI?
 #=====================
 # No
-#MPIMOD	= mod_mpi_stub
+MPIMOD	= mod_mpi_stub
 
 # Yes
-F90	= mpif90
-FLAGS  = -O3
-MPIMOD	= mod_mpi
+#F90	= mpif90
+#FLAGS  = -O3
+#MPIMOD	= mod_mpi
 
 #====================
 # 3. Compile
