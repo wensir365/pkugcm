@@ -2,10 +2,12 @@
 
 ## 2017-Apr-13: Add new output in GrADS format
 
-To better facilitate those users without burner.x, I add the new option of writting outputs in GrADS format, which is a well-known independ, fast, and easy-to-convert format.
+To better facilitate those users without burner.x and netCDF library, I add the new option of writting outputs in GrADS format, which is a well-known independ, fast, and easy-to-convert format.
 
 - mod_io.f90: open and close output files
 - minor modifications were made in the subroutines "outsp" and "outgp"
+
+All the units are corrected and leave geopotential height in the to-do-list. So great!
 
 ## 2017-Apr-11: Fix MPI problem
 

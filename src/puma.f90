@@ -213,6 +213,11 @@ integer  :: ndheat  = 0 ! energy recycling (on/off 1/0)
 integer  :: nradcv = 0 ! use two restoration fields
 
 
+! +++++++++++++++++++++++
+! Xinyu added global var
+! +++++++++++++++++++++++
+integer (kind=8) :: Nbinary =0   ! number of new outputs in GrADS format
+
 
 ! ***********************
 ! * Global Real Scalars *
@@ -347,8 +352,8 @@ real,allocatable :: dentropy(:,:)    ! entropy diagnostics
 character (3),allocatable :: chlat(:) ! label for latitudes
 real (kind=8),allocatable :: sid(:)   ! sin(phi)
 real (kind=8),allocatable :: gwd(:)   ! Gaussian weight (phi)
-real,allocatable :: csq(:)            ! cos2(phi)
-real,allocatable :: rcs(:)            ! 1/cos(phi)
+real, allocatable :: csq(:)           ! cos2(phi)
+real, allocatable :: rcs(:)           ! 1/cos(phi)
 
 ! ****************
 ! * Level Arrays *
@@ -965,7 +970,10 @@ do jstep = 1 , nrun
    call gridpoint
 
    if (mypid == NROOT) then
-      if (mod(nstep,nafter) == 0 .and. noutput > 0) call outsp
+      if (mod(nstep,nafter) == 0 .and. noutput > 0) then
+         call outsp
+         Nbinary = Nbinary+1
+      end if
       if (mod(nstep,ndiag ) == 0 .or. ngui > 0) call diag
       if (ncu > 0) call checkunit
    endif
@@ -2859,7 +2867,7 @@ end subroutine master
       subroutine writesp(kunit,pf,kcode,klev,pscale,poff,gradsunit)
       use pumamod
       real    :: pf(NRSP)
-      real    :: zf(NRSP)
+      real    :: zf(NRSP), zf2(NRSP)
       integer :: ihead(8)
       integer, intent(in) :: gradsunit
       real, dimension(NLON*NLAT) :: zfg
@@ -2884,14 +2892,32 @@ end subroutine master
 
       ! XW(2017/4/13): output in GrADS format
       if (gradsunit>900) then
-         call sp2fc(zf,zfg)
+         zf2(:)= pf(:)
+         call sp2fc(zf2,zfg)
          call fc2gp(zfg,NLON,NLAT)
          call alt2reg(zfg,1)
+         zfg = zfg*pscale+poff
          write(gradsunit) zfg
       end if
 
       return
       end
+
+      ! XW(2017/4/13): output for surface pressure
+      subroutine writesp_ps(kunit,var)
+         use pumamod
+         implicit none
+         integer, intent(in) :: kunit
+         real, dimension(NRSP), intent(in) :: var
+         real, dimension(NRSP) :: vartmp
+         real, dimension(NLON*NLAT) :: varg
+         vartmp = var
+         call sp2fc(vartmp,varg)
+         call fc2gp(varg,NLON,NLAT)
+         call alt2reg(varg,1)
+         varg = exp(varg)*psurf  ! psurf=1011mb
+         write(kunit) varg
+      end subroutine
 
 
 !     ================
@@ -2922,7 +2948,8 @@ end subroutine master
 !     * pressure *
 !     ************
 
-      call writesp(40,sp,152,0,1.0,log(psmean),901)
+      call writesp(40,sp,152,0,1.0,log(psmean),-999)
+      call writesp_ps(901,sp)
 
 !     ***************
 !     * temperature *
@@ -2997,17 +3024,22 @@ end subroutine master
       return
       end  
 
-      subroutine writegp_uv(kunit,pf,scal,off)
+      ! XW(2017/4/13): output for U and V
+      subroutine writegp_uv(kunit,var,scal,off)
       use pumamod
       implicit none
       integer, intent(in) :: kunit
-      real, intent(in) :: scal, off
-      real, dimension(NLON*NLAT), intent(in) :: pf
-      real, dimension(NLON*NLAT) :: zf
+      real, dimension(NLON,NLAT), intent(in) :: var
+	  real, dimension(NLAT), intent(in) :: scal
+      real, intent(in) :: off
+      real, dimension(NLON,NLAT) :: varreg
+      integer :: i
 
-      zf = pf*scal+off
-      call alt2reg(zf,1)
-      write(kunit) zf
+      do i = 1, NLON
+         varreg(i,:) = var(i,:)*scal(:)+off
+      end do
+      call alt2reg(varreg,1)
+      write(kunit) varreg
 
       end subroutine
 
@@ -3039,8 +3071,8 @@ end subroutine master
 
       ! XW(2017/4/13): output U,V
       do jlev = 1, NLEV
-         call writegp_uv(902,gu(:,jlev),1.0,0.0)
-         call writegp_uv(903,gv(:,jlev),1.0,0.0)
+         call writegp_uv(902,gu(:,jlev),cv/sqrt(csq(:)),0.0)
+         call writegp_uv(903,gv(:,jlev),cv/sqrt(csq(:)),0.0)
       end do
       return
       end

@@ -9,7 +9,7 @@ module io
 
    implicit none
 
-   integer, parameter :: Nvar = 6
+   integer, parameter :: Nvar    = 6
 
    integer, dimension(Nvar)           :: lev = (/ 1   , 10  , 10  , 10  , 10  , 10  /)
    integer, dimension(Nvar)           :: fid = (/ 901 , 902 , 903 , 904 , 905 , 906 /)
@@ -48,11 +48,15 @@ end subroutine io_open_output
 
 subroutine io_close_output
    use io
-   use pumamod, only: NLON,NLAT,NLEV
+   use pumamod, only: NLON,NLAT,NLEV,Nbinary
    implicit none
    ! local
    integer :: i,f
    character(len=50) :: fn
+   real :: dd, halfdd
+
+   dd     = 360.0/NLON
+   halfdd = dd/2.0
 
    do i = 1, Nvar
       f = fid(i)
@@ -65,14 +69,14 @@ subroutine io_close_output
          write(f,*) "TITLE "//trim(vid(i))
          write(f,*) "OPTIONS yrev zrev"
          write(f,*) "UNDEF -999"
-         write(f,*) "XDEF  ",NLON," LINEAR    2.8125  5.625"
-         write(f,*) "YDEF  ",NLAT," LINEAR  -87.1875  5.625"
+         write(f,*) "XDEF  ",NLON," LINEAR ",halfdd," ",dd
+         write(f,*) "YDEF  ",NLAT," LINEAR ",(-90+halfdd)," ",dd
          if (vid(i)=="ps  ") then
             write(f,*) "ZDEF  1 LEVELS 1000"
          else
             write(f,*) "ZDEF ",NLEV," LEVELS 1000 900 800 700 600 500 400 300 200 100"
          end if
-         write(f,*) "TDEF 360 LINEAR 1jan0000 1dy"
+         write(f,*) "TDEF ",Nbinary," LINEAR 1jan0000 1dy"
          write(f,*) "VARS   1" 
          write(f,*) trim(vid(i))//"   ", lev(i), "   99   "//trim(desc(i))
          write(f,*) "ENDVARS"
