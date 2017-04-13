@@ -916,6 +916,9 @@ if (mypid == NROOT) then
       zsig(nlev+1:) = 0.0
       write(40) 333,0,iyear*10000+imonth*100+iday,0,nlon,nlat,nlev,ntru
       write(40) zsig
+
+      !XW(2017/4/12): init new outputs
+      call io_open_output
    endif ! (noutput > 0)
 endif ! (mypid == NROOT)
 return
@@ -963,6 +966,7 @@ do jstep = 1 , nrun
 
    if (mypid == NROOT) then
       if (mod(nstep,nafter) == 0 .and. noutput > 0) call outsp
+      !if (mod(nstep,nafter) == 0 .and. noutput > 0) call io_output
       if (mod(nstep,ndiag ) == 0 .or. ngui > 0) call diag
       if (ncu > 0) call checkunit
    endif
@@ -989,7 +993,8 @@ end subroutine master
       real    :: zut,zst                       ! XW(2017-4-7): remove "(kind=8)" at 2 lines
       integer :: imem,ipr,ipf,isw,idr,idw
 
-      if (mypid == NROOT) close(40) ! close output file
+      if (mypid == NROOT) close(40)            ! close output file
+      if (mypid == NROOT) call io_close_output ! XW(2017/4/12): close new output files
 
 !     write restart file
 
@@ -3181,6 +3186,8 @@ end subroutine master
       !$OMP end sections
 
       !$OMP single
+      if (mod(nstep,nafter) == 0 .and. noutput > 0) call io_output   ! XW(2017/4/13): output
+
       call calcgp(gtn,gpmt,gvpp)
 
       gut(:,:) = gu(:,:) * gt(:,:)

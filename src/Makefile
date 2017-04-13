@@ -6,7 +6,7 @@
 #=====================
 # GNU gfortran
 F90    = gfortran
-FLAGS  = -O3 #-fopenmp #-Wall #-pg 
+FLAGS  = -O3 -fopenmp #-Wall #-pg 
 OTHERS = -ffree-line-length-none
 #USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
 
@@ -35,7 +35,7 @@ MPIMOD	= mod_mpi_stub
 #====================
 # 3. Compile
 #====================
-OBJ=${MPIMOD}.o mod_fft.o puma.o mod_legsym.o mod_restart.o
+OBJ=${MPIMOD}.o mod_fft.o puma.o mod_legsym.o mod_restart.o mod_io.o
 
 %.o : %.f90
 	${F90} $(FLAGS) $(OTHERS) -c $<
@@ -43,10 +43,11 @@ OBJ=${MPIMOD}.o mod_fft.o puma.o mod_legsym.o mod_restart.o
 puma.x:	$(OBJ)
 	${F90} $(FLAGS) -o puma.x $(OBJ)
 
-puma.o:		puma.f90
-mod_fft.o:	mod_fft.f90
-mod_legsym.o:	mod_legsym.f90
-mod_restart.o:	mod_restart.f90
+puma.o:        puma.f90
+mod_fft.o:     mod_fft.f90
+mod_legsym.o:  mod_legsym.f90
+mod_restart.o: mod_restart.f90
+mod_io.o:      mod_io.f90
 ${MPIMOD}.o:	${MPIMOD}.f90 puma.o
 
 #====================
