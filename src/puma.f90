@@ -966,7 +966,6 @@ do jstep = 1 , nrun
 
    if (mypid == NROOT) then
       if (mod(nstep,nafter) == 0 .and. noutput > 0) call outsp
-      !if (mod(nstep,nafter) == 0 .and. noutput > 0) call io_output
       if (mod(nstep,ndiag ) == 0 .or. ngui > 0) call diag
       if (ncu > 0) call checkunit
    endif
@@ -2857,11 +2856,13 @@ end subroutine master
 !     SUBROUTINE WRITESP
 !     ==================
 
-      subroutine writesp(kunit,pf,kcode,klev,pscale,poff)
+      subroutine writesp(kunit,pf,kcode,klev,pscale,poff,gradsunit)
       use pumamod
       real    :: pf(NRSP)
       real    :: zf(NRSP)
       integer :: ihead(8)
+      integer, intent(in) :: gradsunit
+      real, dimension(NLON*NLAT) :: zfg
 
       call ntomin(nstep,nmin,nhour,nday,nmonth,nyear)
 
@@ -2881,8 +2882,88 @@ end subroutine master
       write(kunit) ihead
       write(kunit) zf
 
+      ! XW(2017/4/13): output in GrADS format
+      if (gradsunit>900) then
+         call sp2fc(zf,zfg)
+         call fc2gp(zfg,NLON,NLAT)
+         call alt2reg(zfg,1)
+         write(gradsunit) zfg
+      end if
+
       return
       end
+
+
+!     ================
+!     SUBROUTINE OUTSP
+!     ================
+
+      subroutine outsp
+      use pumamod
+      real zsr(NESP)
+
+      if (nwrioro == 1) then
+         call writesp(40,so,129,0,cv*cv,0.0,-999)
+         nwrioro = 0
+      endif
+
+      if (nextout == 1) then
+         call writesp(40,sp2,40,0,1.0,log(psmean),-999)
+         call writesp(40,sp1,41,0,1.0,log(psmean),-999)
+         do jlev = 1,NLEV
+            call writesp(40,st2(1,jlev),42,jlev,ct,t0(jlev)*ct,-999)
+         enddo
+         do jlev = 1,NLEV
+            call writesp(40,st1(1,jlev),43,jlev,ct,t0(jlev)*ct,-999)
+         enddo
+      endif
+
+!     ************
+!     * pressure *
+!     ************
+
+      call writesp(40,sp,152,0,1.0,log(psmean),901)
+
+!     ***************
+!     * temperature *
+!     ***************
+
+      do jlev = 1 , NLEV
+         call writesp(40,st(1,jlev),130,jlev,ct,t0(jlev)*ct,906)
+      enddo
+
+!     ********************
+!     * res. temperature *
+!     ********************
+
+      zampl = cos((real(nstep)-pac)*tac)
+      do jlev = 1 , NLEV
+         zsr(:)=sr1(:,jlev)+sr2(:,jlev)*zampl
+         call writesp(40,zsr,154,jlev,ct,t0(jlev)*ct,-999)
+      enddo
+
+!     **************
+!     * divergence *
+!     **************
+
+      do jlev = 1 , NLEV
+         call writesp(40,sd(1,jlev),155,jlev,ww_scale,0.0,904)
+      enddo
+
+!     *************
+!     * vorticity *
+!     *************
+
+      do jlev = 1 , NLEV
+         zsave = sz(3,jlev)
+         sz(3,jlev) = sz(3,jlev) - plavor
+         call writesp(40,sz(1,jlev),138,jlev,ww_scale,0.0,905)
+         sz(3,jlev) = zsave
+      enddo
+
+      return
+      end
+
 
 !     ==================
 !     SUBROUTINE WRITEGP
@@ -2916,76 +2997,19 @@ end subroutine master
       return
       end  
 
-
-!     ================
-!     SUBROUTINE OUTSP
-!     ================
-
-      subroutine outsp
+      subroutine writegp_uv(kunit,pf,scal,off)
       use pumamod
-      real zsr(NESP)
+      implicit none
+      integer, intent(in) :: kunit
+      real, intent(in) :: scal, off
+      real, dimension(NLON*NLAT), intent(in) :: pf
+      real, dimension(NLON*NLAT) :: zf
 
-      if (nwrioro == 1) then
-         call writesp(40,so,129,0,cv*cv,0.0)
-         nwrioro = 0
-      endif
+      zf = pf*scal+off
+      call alt2reg(zf,1)
+      write(kunit) zf
 
-      if (nextout == 1) then
-         call writesp(40,sp2,40,0,1.0,log(psmean))
-         call writesp(40,sp1,41,0,1.0,log(psmean))
-         do jlev = 1,NLEV
-            call writesp(40,st2(1,jlev),42,jlev,ct,t0(jlev)*ct)
-         enddo
-         do jlev = 1,NLEV
-            call writesp(40,st1(1,jlev),43,jlev,ct,t0(jlev)*ct)
-         enddo
-      endif
-
-!     ************
-!     * pressure *
-!     ************
-
-      call writesp(40,sp,152,0,1.0,log(psmean))
-
-!     ***************
-!     * temperature *
-!     ***************
-
-      do jlev = 1 , NLEV
-         call writesp(40,st(1,jlev),130,jlev,ct,t0(jlev)*ct)
-      enddo
-
-!     ********************
-!     * res. temperature *
-!     ********************
-
-      zampl = cos((real(nstep)-pac)*tac)
-      do jlev = 1 , NLEV
-         zsr(:)=sr1(:,jlev)+sr2(:,jlev)*zampl
-         call writesp(40,zsr,154,jlev,ct,t0(jlev)*ct)
-      enddo
-
-!     **************
-!     * divergence *
-!     **************
-
-      do jlev = 1 , NLEV
-         call writesp(40,sd(1,jlev),155,jlev,ww_scale,0.0)
-      enddo
-
-!     *************
-!     * vorticity *
-!     *************
-
-      do jlev = 1 , NLEV
-         zsave = sz(3,jlev)
-         sz(3,jlev) = sz(3,jlev) - plavor
-         call writesp(40,sz(1,jlev),138,jlev,ww_scale,0.0)
-         sz(3,jlev) = zsave
-      enddo
-
-      return
-      end
+      end subroutine
 
 !     ================
 !     SUBROUTINE OUTGP
@@ -3012,6 +3036,12 @@ end subroutine master
        enddo
       endif
 !
+
+      ! XW(2017/4/13): output U,V
+      do jlev = 1, NLEV
+         call writegp_uv(902,gu(:,jlev),1.0,0.0)
+         call writegp_uv(903,gv(:,jlev),1.0,0.0)
+      end do
       return
       end
 
@@ -3186,8 +3216,6 @@ end subroutine master
       !$OMP end sections
 
       !$OMP single
-      if (mod(nstep,nafter) == 0 .and. noutput > 0) call io_output   ! XW(2017/4/13): output
-
       call calcgp(gtn,gpmt,gvpp)
 
       gut(:,:) = gu(:,:) * gt(:,:)

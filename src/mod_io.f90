@@ -1,54 +1,31 @@
+!====================================
+! PKUGCM MODULE "io"
+! -----------------------------------
+! Creat, collect, and write outputs
+! Xinyu Wen, Peking Univ, Apr/13/2017
+!====================================
+
 module io
+
    implicit none
 
    integer, parameter :: Nvar = 6
 
-   integer, dimension(Nvar)          :: lev = (/ 1    , 10   , 10   , 10   , 10   , 10   /)
-   character(len=4), dimension(Nvar) :: vid = (/"ps  ","u   ","v   ","div ","vor ","t   "/)
-   integer, dimension(Nvar)          :: fid = (/ 901  , 902  , 903  , 904  , 905  , 906  /)
-                                      ! fid = 901 : Surface Pressure (mb)
-                                      ! fid = 902 : U Wind (m/s)
-                                      ! fid = 903 : V Wind (m/s)
-                                      ! fid = 904 : Div (m/s^2)
-                                      ! fid = 905 : Vor (m/s^2)
-                                      ! fid = 906 : Temperature (K)
-
+   integer, dimension(Nvar)           :: lev = (/ 1   , 10  , 10  , 10  , 10  , 10  /)
+   integer, dimension(Nvar)           :: fid = (/ 901 , 902 , 903 , 904 , 905 , 906 /)
+   character(len=3),  dimension(Nvar) :: vid = (/"ps ","u  ","v  ","div","vor","t  "/)
+   character(len=30), dimension(Nvar) :: desc= (/"Surface Pressure (mb)         ", &
+                                                 "U Wind (m/s)                  ", &
+                                                 "V Wind (m/s)                  ", &
+                                                 "Div (m/s^2)                   ", &
+                                                 "Vor (m/s^2)                   ", &
+                                                 "Temperature (K)               " /)
 end module io
 
-subroutine io_output
-   use io
-   use pumamod, only: NLON,NLAT,NLEV, gp,gu,gv,gd,gz,gt
-   implicit none
 
-   ! local
-   real, dimension(NLON*NLAT)      :: g2d
-   real, dimension(NLON*NLAT,NLEV) :: g3d
-
-   g2d = gp
-   call alt2reg(g2d,1)
-   write(fid(1)) g2d       ! gp
-
-   g3d = gu
-   call alt2reg(g3d,NLEV)
-   write(fid(2)) g3d       ! gu
-
-   g3d = gv
-   call alt2reg(g3d,NLEV)
-   write(fid(3)) g3d       ! gv
-
-   g3d = gd
-   call alt2reg(g3d,NLEV)
-   write(fid(4)) g3d       ! gd
-   
-   g3d = gz
-   call alt2reg(g3d,NLEV)
-   write(fid(5)) g3d       ! gz
-   
-   g3d = gt
-   call alt2reg(g3d,NLEV)
-   write(fid(6)) g3d       ! gt
-
-end subroutine io_output
+!=====================
+! io_open_output
+!=====================
 
 subroutine io_open_output
    use io
@@ -64,8 +41,14 @@ subroutine io_open_output
    end do
 end subroutine io_open_output
 
+
+!=====================
+! io_close_output
+!=====================
+
 subroutine io_close_output
    use io
+   use pumamod, only: NLON,NLAT,NLEV
    implicit none
    ! local
    integer :: i,f
@@ -80,18 +63,18 @@ subroutine io_close_output
       open(unit=f, file=trim(fn)//".ctl", access="sequential", form="formatted", status="replace")
          write(f,*) "DSET  ^"//trim(fn)//".bin"
          write(f,*) "TITLE "//trim(vid(i))
-         write(f,*) "OPTIONS yrev"
+         write(f,*) "OPTIONS yrev zrev"
          write(f,*) "UNDEF -999"
-         write(f,*) "XDEF  64 LINEAR    2.8125  5.625"
-         write(f,*) "YDEF  32 LINEAR  -87.1875  5.625"
+         write(f,*) "XDEF  ",NLON," LINEAR    2.8125  5.625"
+         write(f,*) "YDEF  ",NLAT," LINEAR  -87.1875  5.625"
          if (vid(i)=="ps  ") then
             write(f,*) "ZDEF  1 LEVELS 1000"
          else
-            write(f,*) "ZDEF 10 LEVELS 1000 900 800 700 600 500 400 300 200 100"
+            write(f,*) "ZDEF ",NLEV," LEVELS 1000 900 800 700 600 500 400 300 200 100"
          end if
          write(f,*) "TDEF 360 LINEAR 1jan0000 1dy"
          write(f,*) "VARS   1" 
-         write(f,*) trim(vid(i))//"   ", lev(i), "  99  "//trim(vid(i))
+         write(f,*) trim(vid(i))//"   ", lev(i), "   99   "//trim(desc(i))
          write(f,*) "ENDVARS"
       close(fid(i))
    end do

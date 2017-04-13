@@ -1,5 +1,12 @@
 # Change Log
 
+## 2017-Apr-13: Add new output in GrADS format
+
+To better facilitate those users without burner.x, I add the new option of writting outputs in GrADS format, which is a well-known independ, fast, and easy-to-convert format.
+
+- mod_io.f90: open and close output files
+- minor modifications were made in the subroutines "outsp" and "outgp"
+
 ## 2017-Apr-11: Fix MPI problem
 
 Fix an important bug in mod_fft.f90 which induce running problem with MPI. A couple of days ago, I thought "fftini" (fftmod.f90) just need to be called for once. Thus, I add a line in "prolog" (puma.f90) to call "fftini" for just one time, and remove corresponding code from "gp2fc" and "fc2gp" in fftmod.f90. Today, I turn those work back. MPI function works fine again. Thank god!
