@@ -2867,9 +2867,10 @@ end subroutine master
       subroutine writesp(kunit,pf,kcode,klev,pscale,poff,gradsunit)
       use pumamod
       real    :: pf(NRSP)
-      real    :: zf(NRSP), zf2(NRSP)
+      real    :: zf(NRSP)
       integer :: ihead(8)
-      integer, intent(in) :: gradsunit
+      integer, intent(in)        :: gradsunit
+      real, dimension(NRSP)      :: zf2
       real, dimension(NLON*NLAT) :: zfg
 
       call ntomin(nstep,nmin,nhour,nday,nmonth,nyear)
@@ -3050,6 +3051,7 @@ end subroutine master
       subroutine outgp
       use pumamod
       real zhelp(NHOR)
+      real, dimension(NUGP) :: x2d
 !     
 !     energy diagnostics
 !   
@@ -3071,8 +3073,11 @@ end subroutine master
 
       ! XW(2017/4/13): output U,V
       do jlev = 1, NLEV
-         call writegp_uv(902,gu(:,jlev),cv/sqrt(csq(:)),0.0)
-         call writegp_uv(903,gv(:,jlev),cv/sqrt(csq(:)),0.0)
+         call mpgagp(x2d,gu(:,jlev),1)
+         if (mypid==NROOT) call writegp_uv(902,x2d,cv/sqrt(csq(:)),0.0)
+
+         call mpgagp(x2d,gv(:,jlev),1)
+         if (mypid==NROOT) call writegp_uv(903,x2d,cv/sqrt(csq(:)),0.0)
       end do
       return
       end
