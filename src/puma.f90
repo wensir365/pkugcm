@@ -216,8 +216,8 @@ integer  :: nradcv = 0 ! use two restoration fields
 ! +++++++++++++++++++++++
 ! Xinyu added global var
 ! +++++++++++++++++++++++
-integer (kind=8) :: Nbinary =0   ! number of new outputs in GrADS format
-
+integer (kind=8) :: Nbinary=0    ! number of new outputs in GrADS format
+integer          :: outformat=1  ! output format (0=default; 1=default+GrADS)
 
 ! ***********************
 ! * Global Real Scalars *
@@ -923,7 +923,7 @@ if (mypid == NROOT) then
       write(40) zsig
 
       !XW(2017/4/12): init new outputs
-      call io_open_output
+      if (outformat==1) call io_open_output
    endif ! (noutput > 0)
 endif ! (mypid == NROOT)
 return
@@ -1001,7 +1001,8 @@ end subroutine master
       integer :: imem,ipr,ipf,isw,idr,idw
 
       if (mypid == NROOT) close(40)            ! close output file
-      if (mypid == NROOT) call io_close_output ! XW(2017/4/12): close new output files
+      ! XW(2017/4/12): close new output files
+      if (mypid == NROOT .and. outformat==1) call io_close_output 
 
 !     write restart file
 
@@ -1362,7 +1363,8 @@ end subroutine master
       , rotspd  , seed    , sid_day , sigmah  , sigmax  , dcsponge&
       , spstep  , syncsecs, syncstr , t0k     , tauf    , taur    &
       , tac     , tauta   , tauts   , tgr     &
-      , ww_time
+      , ww_time &
+      , outformat                               ! Xinyu added parameters in namelist
 
       open(13,file=puma_namelist,iostat=ios)
       if (ios == 0) then
@@ -2892,9 +2894,9 @@ end subroutine master
       write(kunit) zf
 
       ! XW(2017/4/13): output in GrADS format
-      if (gradsunit>900) then
+      if (gradsunit>900 .and. outformat==1) then
          zf2(:)= pf(:)
-         call sp2fc(zf2,zfg)
+         call sp2fc_all(zf2,zfg)
          call fc2gp(zfg,NLON,NLAT)
          call alt2reg(zfg,1)
          zfg = zfg*pscale+poff
@@ -2913,7 +2915,7 @@ end subroutine master
          real, dimension(NRSP) :: vartmp
          real, dimension(NLON*NLAT) :: varg
          vartmp = var
-         call sp2fc(vartmp,varg)
+         call sp2fc_all(vartmp,varg)
          call fc2gp(varg,NLON,NLAT)
          call alt2reg(varg,1)
          varg = exp(varg)*psurf  ! psurf=1011mb
@@ -2950,7 +2952,7 @@ end subroutine master
 !     ************
 
       call writesp(40,sp,152,0,1.0,log(psmean),-999)
-      call writesp_ps(901,sp)
+      if (outformat==1) call writesp_ps(901,sp)
 
 !     ***************
 !     * temperature *
@@ -3072,6 +3074,7 @@ end subroutine master
 !
 
       ! XW(2017/4/13): output U,V
+      if (outformat==1) then
       do jlev = 1, NLEV
          call mpgagp(x2d,gu(:,jlev),1)
          if (mypid==NROOT) call writegp_uv(902,x2d,cv/sqrt(csq(:)),0.0)
@@ -3079,7 +3082,7 @@ end subroutine master
          call mpgagp(x2d,gv(:,jlev),1)
          if (mypid==NROOT) call writegp_uv(903,x2d,cv/sqrt(csq(:)),0.0)
       end do
-      return
+      end if
       end
 
 

@@ -217,6 +217,36 @@ do l = 1 , nhpp
 enddo ! l
 end subroutine sp2fc
 
+! XW(2017/4/14): apply sp2fc on all 2D grid (lon,lat)
+! for outsp to produce new output in GrADS format
+subroutine sp2fc_all(sp,fc) ! Spectral to Fourier
+use legsym
+implicit none
+complex, dimension(ncsp),        intent(in ) :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nlat/2), intent(out) :: fc   ! Fourier coefficients
+! local
+integer :: l ! Loop index for latitude
+integer :: m ! Loop index for zonal wavenumber m
+integer :: w ! Index for spectral mode
+integer :: e ! Index for last wavenumber
+complex :: fs,fa
+
+fc(:,:) = (0.0,0.0)
+
+do l = 1 , nlat/2
+  w = 1  
+  do m = 1 ,ntp1
+    e = w + ntp1 - m
+    fs = dot_product(qi(w  :e:2,l),sp(w  :e:2)) ! XW: qi derived from module "legsym"
+    fa = dot_product(qi(w+1:e:2,l),sp(w+1:e:2))
+    fc(m     ,l) = fs + fa
+    fc(m+nlat,l) = fs - fa
+    w = e + 1
+  enddo ! m
+enddo ! l
+end subroutine sp2fc_all
+
+
 
 ! ===================
 ! SUBROUTINE SP2FCDMU

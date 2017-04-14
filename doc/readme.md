@@ -1,5 +1,9 @@
 # Change Log
 
+## 2017-Apr-14: Add namelist option for GrADS outputs
+
+Add an option "outformat" in puma_namelist to control if enable outputs in GrADS format. This feature, output in GrADS format, is just working for serial and OpenMP mode, but MPI mode. Still in debuging.
+
 ## 2017-Apr-13: Add new output in GrADS format
 
 To better facilitate those users without burner.x and netCDF library, I add the new option of writting outputs in GrADS format, which is a well-known independ, fast, and easy-to-convert format.

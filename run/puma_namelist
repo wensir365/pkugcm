@@ -21,4 +21,6 @@
  SYNCSTR =     0.0
  ROTSPD  =     1.0
  TGR     =   288.0
+
+   outformat = 1        ! Outputs format: 0=default, 1=default+GrADS(OMP/Ser)
  /END
