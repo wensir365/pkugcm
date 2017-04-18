@@ -4,3 +4,6 @@ echo "you may start a new run now!"
 
 rm -f gmon.out profile
 rm -f *.bin *.ctl fort.*
+
+rm -rf output
+rm -rf netcdf

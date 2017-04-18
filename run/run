@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/bin/tcsh
 
-#export OMP_NUM_THREADS=1
+#setenv OMP_NUM_THREADS 2
 
 date
 
@@ -21,3 +21,20 @@ mpiexec -np 2 puma.x 32 10
 #mpiexec -np 4 puma.x 256 10
 
 date
+
+set outpath = output
+rm -rf $outpath
+mkdir $outpath
+mv output_* $outpath
+
+set ncpath  = netcdf
+rm -rf $ncpath
+mkdir $ncpath
+
+foreach var (ps u v div vor t)
+   set fctl = $outpath/output_$var.ctl
+   set fbin = $outpath/output_$var.bin
+   set fnc  = $ncpath/output_$var.nc
+   cdo -f nc import_binary $fctl $fnc
+   echo "producing ... $fnc"
+end

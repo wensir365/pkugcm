@@ -160,9 +160,10 @@ subroutine io_close_output
          if (vid(i)=="ps  ") then
             write(f,*) "ZDEF  1 LEVELS 1000"
          else
-            write(f,*) "ZDEF ",NLEV," LEVELS 1000 900 800 700 600 500 400 300 200 100"
+            !write(f,*) "ZDEF ",NLEV," LEVELS 1000 900 800 700 600 500 400 300 200 100"
+            write(f,*) "ZDEF ",NLEV," LEVELS 950 850 750 650 550 450 350 250 150 50"
          end if
-         write(f,*) "TDEF ",writecount," LINEAR 1jan0000 1dy"
+         write(f,*) "TDEF ",writecount," LINEAR 1jan2000 1dy"
          write(f,*) "VARS   1" 
          write(f,*) trim(vid(i))//"   ", lev(i), "   99   "//trim(desc(i))
          write(f,*) "ENDVARS"

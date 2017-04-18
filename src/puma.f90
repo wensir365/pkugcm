@@ -981,11 +981,6 @@ do jstep = 1 , nrun
    call spectral
    if (mod(nstep,nafter) == 0 .and. noutput==1) call outgp
 
-   ! XW: pku output format
-   if (mypid == NROOT) then
-      if (mod(nstep,nafter) == 0 .and. noutput==2) call io_write_output
-   end if
-
 enddo
 return
 end subroutine master
@@ -3195,6 +3190,8 @@ end subroutine master
       !$OMP section
       call fc2gp(gpmt,NLON,NLPP)
       !$OMP end sections
+
+      if (mod(nstep,nafter) == 0 .and. noutput==2) call io_collect_output
 
       !$OMP single
       call calcgp(gtn,gpmt,gvpp)

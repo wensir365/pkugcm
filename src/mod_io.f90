@@ -26,55 +26,82 @@ end module io
 
 
 !=====================
-! io_write_output
+! io_collect_output
 !=====================
 
-subroutine io_write_output
+subroutine io_collect_output
    use io
    use pumamod
    implicit none
 
-   ! local
-   real, dimension(NRSP)            :: sp2d
-   real, dimension(NRSP,NLEV)       :: sp3d
-   real, dimension(NLON,NLAT,NLEV)  :: x3d, y3d
-   real, dimension(NLON,NLAT)       :: x2d, y2d
+   real, dimension(NLON,NLAT)       :: x2d
+   real, dimension(NLON,NLAT,NLEV)  :: x3d,y3d
    real, dimension(NLAT)            :: scal
    real                             :: offs
    integer :: jlon,jlat,jlev
 
-   !--- Surface Pressure ---
-   !call mpgallsp(sp2d,spp,1)        ! key difference over serial version
-   !call sp2fc(sp2d,x2d)
-   !call fc2gp(x2d,NLON,NLAT)
-   !call alt2reg(x2d,1)
-   !x2d   = exp(x2d)*psurf           ! psurf=1011mb
+   !--- Surface Pressure
+   call mpgagp(x2d,gp,1)
 
-   !write(fid(1)) x2d
+   if (mypid==NROOT) then
+      call fc2gp(x2d,NLON,NLAT)
+      x2d   = exp(x2d)*psurf
+      call alt2reg(x2d,1)
+      write(fid(1)) x2d
+   end if
 
-   !--- U and V ---
-   call mpgagp(x3d,gu(:,:),NLEV)
-   call mpgagp(y3d,gv(:,:),NLEV)
-   scal  = cv/sqrt(csq(:))
-   offs  = 0.0
+   !--- U and V
+   call mpgagp(x3d, gu, NLEV)
+   call mpgagp(y3d, gv, NLEV)
 
-   do jlev = 1, NLEV
+   if (mypid==NROOT) then
+      scal  = cv/sqrt(csq(:))
+      offs  = 0.0
+
+      do jlev = 1, NLEV
       do jlon = 1, NLON
          x3d(jlon,:,jlev) = x3d(jlon,:,jlev) * scal(:) + offs
          y3d(jlon,:,jlev) = y3d(jlon,:,jlev) * scal(:) + offs
       end do
-   end do
+      end do
 
-   call alt2reg(x3d(:,:,:),NLEV)
-   call alt2reg(y3d(:,:,:),NLEV)
+      call alt2reg(x3d,NLEV)
+      call alt2reg(y3d,NLEV)
 
-   write(fid(2)) x3d
-   write(fid(3)) y3d
+      write(fid(2)) x3d
+      write(fid(3)) y3d
+   end if
+
+   !--- Div and Vor
+   call mpgagp(x3d, gd, NLEV)
+   call mpgagp(y3d, gz, NLEV)
+
+   if (mypid==NROOT) then
+      x3d   = x3d * ww_scale
+      y3d   = y3d * ww_scale
+
+      call alt2reg(x3d,NLEV)
+      call alt2reg(y3d,NLEV)
+
+      write(fid(4)) x3d
+      write(fid(5)) y3d
+   end if
+
+   !--- T
+   call mpgagp(x3d, gt, NLEV)
+   if (mypid==NROOT) then
+      do jlev = 1, NLEV
+         x3d(:,:,jlev) = x3d(:,:,jlev) * ct + t0(jlev)*ct
+      end do
+      call alt2reg(x3d,NLEV)
+      write(fid(6)) x3d
+   end if
 
    !--- count ---
    writecount = writecount + 1
 
-end subroutine io_write_output
+end subroutine io_collect_output
+
 
 !=====================
 ! io_open_output
@@ -95,6 +122,7 @@ subroutine io_open_output
    end do
 
    writecount = 0
+
 end subroutine io_open_output
 
 
@@ -131,9 +159,10 @@ subroutine io_close_output
          if (vid(i)=="ps  ") then
             write(f,*) "ZDEF  1 LEVELS 1000"
          else
-            write(f,*) "ZDEF ",NLEV," LEVELS 1000 900 800 700 600 500 400 300 200 100"
+            !write(f,*) "ZDEF ",NLEV," LEVELS 1000 900 800 700 600 500 400 300 200 100"
+            write(f,*) "ZDEF ",NLEV," LEVELS 950 850 750 650 550 450 350 250 150 50"
          end if
-         write(f,*) "TDEF ",writecount," LINEAR 1jan0000 1dy"
+         write(f,*) "TDEF ",writecount," LINEAR 1jan2000 1dy"
          write(f,*) "VARS   1" 
          write(f,*) trim(vid(i))//"   ", lev(i), "   99   "//trim(desc(i))
          write(f,*) "ENDVARS"
