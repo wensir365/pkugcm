@@ -1,0 +1,6 @@
+rm -f pkugcm_diag  pkugcm_output  pkugcm_sp_init  pkugcm_status
+echo "pkugcm_diag  pkugcm_output  pkugcm_sp_init  pkugcm_status ...... were removed!"
+echo "you may start a new run now!"
+
+rm -f gmon.out profile
+rm -f *.bin *.ctl fort.*

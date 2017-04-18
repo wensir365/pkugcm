@@ -1,12 +1,12 @@
 #!/bin/bash
 
-export OMP_NUM_THREADS=4
+#export OMP_NUM_THREADS=1
 
 date
 
 # T21
-./puma.x 32 10
-#mpiexec -np 4 puma.x 32 10
+#./puma.x 32 10
+mpiexec -np 2 puma.x 32 10
 
 # T42
 #./puma.x 64 10

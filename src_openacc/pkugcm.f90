@@ -1,10 +1,13 @@
 module pumamod
 
 !*********************************************!
+! Peking University General Circulation Model !
+! Xinyu Wen                                   !
+! April, 2017                                 !
+!*********************************************!
+! is based on                                 !
 ! Portable University Model of the Atmosphere !
-!*********************************************!
 ! Version: 17.0   16-Feb-2011                 !
-!*********************************************!
 ! Klaus Fraedrich                             !
 ! Frank Lunkeit  - Edilbert Kirk              !
 ! Frank Sielmann - Torben Kunz                !
@@ -16,7 +19,15 @@ module pumamod
 ! http://www.mi.uni-hamburg.de/puma           !
 !*********************************************!
 
-real :: wwt = 13713.4258
+! ****************************************************************
+! * Don't touch the following parameter definitions !            *
+! ****************************************************************
+integer, parameter :: PUMA   = 0              ! Model ID
+integer, parameter :: PLASIM = 1              ! Model ID
+integer, parameter :: PKUGCM = 2              ! Peking Univ GCM
+
+integer        :: model      = PKUGCM
+character(80)  :: modelver   = "prototype (Apr/15/2017)"
 
 !**************************************************************!
 ! The number of processes for processing on parallel machines  !
@@ -64,34 +75,28 @@ integer :: nesp =  506 ! number of extended modes
 
 integer :: nlpp =   32 ! Latitudes per process
 integer :: nhpp =   16 ! Half latitudes per process
-integer :: nhor = 2048 ! Horizontal part
+integer :: nhor = 2048 ! Horizontal part (nlon x nlat)
 integer :: nugp = 2048 ! Horizontal total
 integer :: npgp = 1024 ! Horizontal total packed words
+                       ! 南极和北极合并为一个复数 i.e. packed word
 
-integer :: nud  =    6 ! I/O unit for diagnostic output
+integer :: nud  =    6 ! I/O unit for diagnostic output (*_diag)
 
 !***********!
 ! filenames !
 !***********!
-character (256) :: puma_namelist       = "puma_namelist"
-character (256) :: puma_output         = "puma_output"
-character (256) :: puma_diag           = "puma_diag"
-character (256) :: puma_restart        = "puma_restart"
-character (256) :: puma_status         = "puma_status"
+character (256) :: puma_namelist       = "pkugcm_namelist"
+character (256) :: puma_output         = "pkugcm_output"
+character (256) :: puma_diag           = "pkugcm_diag"
+character (256) :: puma_restart        = "pkugcm_restart"
+character (256) :: puma_status         = "pkugcm_status"
 character (256) :: efficiency_dat      = "efficiency.dat"
-character (256) :: ppp_puma_txt        = "ppp-puma.txt"
-character (256) :: puma_sp_init        = "puma_sp_init"
+character (256) :: puma_sp_init        = "pkugcm_sp_init"
 
 ! *****************************************************************
 ! * For multiruns the instance number is appended to the filename *
 ! * e.g.: puma_namelist_1 puma_diag_1 etc. for instance # 1       *
 ! *****************************************************************
-
-! ****************************************************************
-! * Don't touch the following parameter definitions !            *
-! ****************************************************************
-integer, parameter :: PUMA   = 0              ! Model ID
-integer, parameter :: PLASIM = 1              ! Model ID
 
 ! XW (2017-04-07): change parameters to standard F90 format below
 integer, parameter :: MAXLEV = 100            ! Maximum level dimension
@@ -147,6 +152,7 @@ real :: alr          = ALR_EARTH     ! average lapse rate [K/km] on Earth
 real :: ga           = GA_EARTH      ! Gravity [m/sec*sec] on Earth
 real :: psurf        = PSURF_EARTH   ! Mean surface pressure for EARTH [Pa] 
 
+real :: wwt          = 13713.4258    ! time scale 有些地方替换掉了 ww_time
 real :: ww_time      = 0.0           ! time scale [sec] (day / 2 Pi)
 real :: ww_scale     = 0.0           ! reciprocal of time scale [1/sec]
 real :: cv           = 0.0           ! velocity scale [m/sec] on Earth
@@ -160,8 +166,6 @@ logical :: lrestart =  .false. ! Existing "puma_restart" sets to .true.
 logical :: lselect  =  .false. ! true: disable some zonal waves
 logical :: lspecsel =  .false. ! true: disable some spectral modes
 
-integer :: model    = PUMA
-
 integer :: kick     =  1 ! kick > 0 initializes eddy generation
 integer :: nafter   =  0 ! write data interval 0: controlled by nwpd
 integer :: nwpd     =  1 ! number of writes per day
@@ -169,10 +173,10 @@ integer :: ncoeff   =  0 ! number of modes to print
 integer :: ndel     =  6 ! ndel
 integer :: ndiag    = 12 ! write diagnostics interval
 integer :: newsr    =  0 ! 1: recalculate sr1 and sr2 after restart
-integer :: ngui     =  0 ! activate Graphical User Interface	!XW(Mar/25/2017) 0=off
+!integer :: ngui     =  0 ! activate Graphical User Interface	!XW(Mar/25/2017) 0=off
 integer :: nkits    =  3 ! number of initial timesteps
 integer :: nlevt    =  9 ! tropospheric levels (set_vertical_grid)
-integer :: noutput  =  1 ! global switch for output on (1) or off (0) or pkuformat (2)
+integer :: noutput  =  2 ! global switch for output: 0=off; 1=on(puma format); 2=GrADS(pku format)
 integer :: nwspini  =  1 ! write sp_init after initialization
 integer :: nrun     =  0 ! if (nstop == 0) nstop = nstep + nrun
 integer :: nstep1   =  0 ! start step (for cpu statistics)
@@ -210,7 +214,7 @@ integer  :: nenergy = 0 ! energy diagnostics (on/off 1/0)
 integer  :: nentropy= 0 ! entropy diagnostics (on/off 1/0)
 integer  :: ndheat  = 0 ! energy recycling (on/off 1/0)
 
-integer  :: nradcv = 0 ! use two restoration fields
+integer  :: nradcv = 0  ! use two restoration fields
 
 
 ! +++++++++++++++++++++++
@@ -218,83 +222,84 @@ integer  :: nradcv = 0 ! use two restoration fields
 ! +++++++++++++++++++++++
 !integer (kind=8) :: Nbinary=0    ! number of new outputs in GrADS format
 !integer          :: outformat=1  ! output format (0=default; 1=default+GrADS)
+                                 ! see another key switch: "noutput"
 
 ! ***********************
 ! * Global Real Scalars *
 ! ***********************
 
-real :: alpha  =     1.0  ! Williams filter factor
-real :: alrs  =      0.0  ! stratospheric lapse rate [K/m]
-real :: delt              ! normalized timestep
-real :: delt2             ! 2 * delt
-real :: dtep   =    60.0  ! delta T equator <-> pole  [K]
-real :: dtns   =   -70.0  ! delta T   north <-> south [K]
-real :: dtrop  = 12000.0  ! Tropopause height [m]
-real :: dttrp  =     2.0  ! Tropopause smoothing [K]
-real :: dtzz   =    10.0  ! delta(Theta)/H additional lapserate in
-                          ! Held & Suarez T_R field
-real :: orofac =    1.0   ! factor to scale the orograpy
-real :: plavor =    EZ    ! planetary vorticity
-real :: psmean = PSURF_EARTH ! Mean of Ps on Earth
-real :: rotspd =     1.0  ! rotation speed 1.0 = normal Earth rotation
-real :: sigmax =  6.0e-7  ! sigma for top half level
-real :: spstep =  0.0     ! seconds per step 0 = automatic
-real :: diffts = 21600.0  ! diffusion time scale [sec]
-real :: tac    =   360.0  ! length of annual cycle [days] (0 = no cycle)
-real :: pac    =     0.0  ! phase of the annual cycle [days]
-real :: tgr    =   288.0  ! Ground Temperature in mean profile [K]
-real :: dvdiff =     0.0  ! vertical diffusion coefficient [m2/s]
-!                         ! dvdiff =0. means no vertical diffusion
-real :: disp   =     0.0  ! noise dispersion
-real :: tauta  =    40.0  ! heating timescale far from surface
-real :: tauts  =     4.0  ! heating timescale close to surface
-real :: pspon  = 50.      ! apply sponge layer where p < pspon
-!                         ! pressure [Pa]
+real :: alpha  =     1.0         ! Williams filter factor
+real :: alrs  =      0.0         ! stratospheric lapse rate [K/m]
+real :: delt                     ! normalized timestep
+real :: delt2                    ! 2 * delt
+real :: dtep   =    60.0         ! delta T equator <-> pole  [K]
+real :: dtns   =   -70.0         ! delta T   north <-> south [K]
+real :: dtrop  = 12000.0         ! Tropopause height [m]
+real :: dttrp  =     2.0         ! Tropopause smoothing [K]
+real :: dtzz   =    10.0         ! delta(Theta)/H additional lapserate in
+                                 ! Held & Suarez T_R field
+real :: orofac =    1.0          ! factor to scale the orograpy
+real :: plavor =    EZ           ! planetary vorticity
+real :: psmean = PSURF_EARTH     ! Mean of Ps on Earth
+real :: rotspd =     1.0         ! rotation speed 1.0 = normal Earth rotation
+real :: sigmax =  6.0e-7         ! sigma for top half level
+real :: spstep =  0.0            ! seconds per step 0 = automatic
+real :: diffts = 21600.0         ! diffusion time scale [sec]
+real :: tac    =   360.0         ! length of annual cycle [days] (0 = no cycle)
+real :: pac    =     0.0         ! phase of the annual cycle [days]
+real :: tgr    =   288.0         ! Ground Temperature in mean profile [K]
+real :: dvdiff =     0.0         ! vertical diffusion coefficient [m2/s]
+!                                ! dvdiff =0. means no vertical diffusion
+real :: disp   =     0.0         ! noise dispersion
+real :: tauta  =    40.0         ! heating timescale far from surface
+real :: tauts  =     4.0         ! heating timescale close to surface
+real :: pspon  = 50.             ! apply sponge layer where p < pspon
+!                                ! pressure [Pa]
 real :: dcsponge = 0.5 / 86400.0 ! damping coefficient for sponge layer [1/sec]
 
 ! **************************
 ! * Global Spectral Arrays *
 ! **************************
 
-real, allocatable :: sd(:,:)  ! Spectral Divergence
-real, allocatable :: sdd(:,:) ! Difference between instances
-real, allocatable :: st(:,:)  ! Spectral Temperature
-real, allocatable :: std(:,:) ! Difference between instances
-real, allocatable :: st1(:,:) ! Spectral Temperature at t-1 (for NEXTOUT == 1)
-real, allocatable :: st2(:,:) ! Spectral Temperature at t-2 (for NEXTOUT == 1)
-real, allocatable :: sz(:,:)  ! Spectral Vorticity
-real, allocatable :: szd(:,:) ! Difference between instances
-real, allocatable :: sp(:)    ! Spectral Pressure (ln Ps)
-real, allocatable :: spd(:)   ! Difference between instances
-real, allocatable :: sq(:,:)  ! For compatibility with PlaSim
-real, allocatable :: sp1(:)   ! Spectral Pressure at t-1 (for NEXTOUT == 1)
-real, allocatable :: sp2(:)   ! Spectral Pressure at t-2 (for NEXTOUT == 1)
-real, allocatable :: so(:)    ! Spectral Orography
-real, allocatable :: sr1(:,:) ! Spectral Restoration Temperature
-real, allocatable :: sr2(:,:) ! Spectral Restoration Temperature
+real, allocatable :: sd(:,:)     ! Spectral Divergence
+!real, allocatable :: sdd(:,:)    ! Difference between instances         ! 干掉之 
+real, allocatable :: st(:,:)     ! Spectral Temperature
+!real, allocatable :: std(:,:)    ! Difference between instances         ! 干掉之
+real, allocatable :: st1(:,:)    ! Spectral Temperature at t-1 (for NEXTOUT == 1)
+real, allocatable :: st2(:,:)    ! Spectral Temperature at t-2 (for NEXTOUT == 1)
+real, allocatable :: sz(:,:)     ! Spectral Vorticity
+!real, allocatable :: szd(:,:)    ! Difference between instances         ! 干掉之
+real, allocatable :: sp(:)       ! Spectral Pressure (ln Ps)
+!real, allocatable :: spd(:)      ! Difference between instances         ! 干掉之
+real, allocatable :: sq(:,:)     ! For compatibility with PlaSim
+real, allocatable :: sp1(:)      ! Spectral Pressure at t-1 (for NEXTOUT == 1)
+real, allocatable :: sp2(:)      ! Spectral Pressure at t-2 (for NEXTOUT == 1)
+real, allocatable :: so(:)       ! Spectral Orography
+real, allocatable :: sr1(:,:)    ! Spectral Restoration Temperature
+real, allocatable :: sr2(:,:)    ! Spectral Restoration Temperature
 
-real, allocatable :: sdp(:,:) ! Spectral Divergence  Partial
-real, allocatable :: stp(:,:) ! Spectral Temperature Partial
-real, allocatable :: szp(:,:) ! Spectral Vorticity   Partial
-real, allocatable :: spp(:)   ! Spectral Pressure    Partial
-real, allocatable :: sop(:)   ! Spectral Orography   Partial
-real, allocatable :: srp1(:,:)! Spectral Restoration Partial
-real, allocatable :: srp2(:,:)! Spectral Restoration Partial
+real, allocatable :: sdp(:,:)    ! Spectral Divergence  Partial
+real, allocatable :: stp(:,:)    ! Spectral Temperature Partial
+real, allocatable :: szp(:,:)    ! Spectral Vorticity   Partial
+real, allocatable :: spp(:)      ! Spectral Pressure    Partial
+real, allocatable :: sop(:)      ! Spectral Orography   Partial
+real, allocatable :: srp1(:,:)   ! Spectral Restoration Partial
+real, allocatable :: srp2(:,:)   ! Spectral Restoration Partial
 
-real, allocatable :: sdt(:,:) ! Spectral Divergence  Tendency
-real, allocatable :: stt(:,:) ! Spectral Temperature Tendency
-real, allocatable :: szt(:,:) ! Spectral Vorticity   Tendency
-real, allocatable :: spt(:)   ! Spectral Pressure    Tendency
+real, allocatable :: sdt(:,:)    ! Spectral Divergence  Tendency
+real, allocatable :: stt(:,:)    ! Spectral Temperature Tendency
+real, allocatable :: szt(:,:)    ! Spectral Vorticity   Tendency
+real, allocatable :: spt(:)      ! Spectral Pressure    Tendency
 
-real, allocatable :: sdm(:,:) ! Spectral Divergence  Minus
-real, allocatable :: stm(:,:) ! Spectral Temperature Minus
-real, allocatable :: szm(:,:) ! Spectral Vorticity   Minus
-real, allocatable :: spm(:)   ! Spectral Pressure    Minus
+real, allocatable :: sdm(:,:)    ! Spectral Divergence  Minus
+real, allocatable :: stm(:,:)    ! Spectral Temperature Minus
+real, allocatable :: szm(:,:)    ! Spectral Vorticity   Minus
+real, allocatable :: spm(:)      ! Spectral Pressure    Minus
 
-real, allocatable :: sak(:)   ! Hyper diffusion
-real, allocatable :: srcn(:)  ! 1.0 / (n * (n+1))
-real, allocatable :: span(:)  ! Pressure for diagnostics
-real, allocatable :: spnorm(:)! Factors for output normalization
+real, allocatable :: sak(:)      ! Hyper diffusion
+real, allocatable :: srcn(:)     ! 1.0 / (n * (n+1))
+real, allocatable :: span(:)     ! Pressure for diagnostics
+real, allocatable :: spnorm(:)   ! Factors for output normalization
 
 integer, allocatable :: nindex(:)  ! Holds wavenumber
 integer, allocatable :: nscatsp(:) ! Used for reduce_scatter op
@@ -336,14 +341,14 @@ real, allocatable :: gr2c(:,:)   ! variable convective restoration time scale
 ! * Diagnostic Arrays *
 ! *********************
 
-integer, allocatable :: ndil(:) ! Set diagnostics level
+integer, allocatable :: ndil(:)  ! Set diagnostics level
 
-real, allocatable :: csu(:,:) ! Cross section u [m/s]
-real, allocatable :: csv(:,:) ! Cross section v [m/s]
-real, allocatable :: cst(:,:) ! Cross section T [Celsius]
+real, allocatable :: csu(:,:)    ! Cross section u [m/s]
+real, allocatable :: csv(:,:)    ! Cross section v [m/s]
+real, allocatable :: cst(:,:)    ! Cross section T [Celsius]
 
-real,allocatable :: denergy(:,:)     ! energy diagnostics
-real,allocatable :: dentropy(:,:)    ! entropy diagnostics
+real,allocatable :: denergy(:,:) ! energy diagnostics
+real,allocatable :: dentropy(:,:)! entropy diagnostics
 
 ! *******************
 ! * Latitude Arrays *
@@ -351,6 +356,7 @@ real,allocatable :: dentropy(:,:)    ! entropy diagnostics
 
 character (3),allocatable :: chlat(:) ! label for latitudes
 real (kind=8),allocatable :: sid(:)   ! sin(phi)
+real (kind=8),allocatable :: cid(:)   ! cos(phi)   !XW(2017/4/15)
 real (kind=8),allocatable :: gwd(:)   ! Gaussian weight (phi)
 real, allocatable :: csq(:)           ! cos2(phi)
 real, allocatable :: rcs(:)           ! 1/cos(phi)
@@ -380,44 +386,30 @@ real, allocatable :: xlt(:,:)         ! matrix LT (tau)
 ! * Parallel Stuff *
 ! ******************
 
-integer :: myworld = 0                   ! MPI variable
-integer :: mpinfo  = 0                   ! MPI variable
-integer :: mypid   = 0                   ! My Process Id
-real(kind=8)    :: tmstart = 0.0                 ! CPU time at start
-real(kind=8)    :: tmstop  = 0.0                 ! CPU time at stop
-character(80), allocatable :: ympname(:) ! Processor name
+!integer :: myworld = 0                   ! MPI variable
+!integer :: mpinfo  = 0                   ! MPI variable
+!integer :: mypid   = 0                   ! My Process Id
+!character(80), allocatable :: ympname(:) ! Processor name
 
+real(kind=8)    :: tmstart = 0.0         ! CPU time at start
+real(kind=8)    :: tmstop  = 0.0         ! CPU time at stop
 
 ! **********************
 ! * Multirun variables *
 ! **********************
 
-integer :: mrworld =  0   ! MPI communication
-integer :: mrinfo  =  0   ! MPI info
-integer :: mrpid   = -1   ! MPI instance id
-integer :: mrnum   =  0   ! MPI number of instances
-integer :: mintru  =  0   ! Lowest resolution of all instances
-integer :: mrdim   =  0   ! Exchange dimension  (min. NRSP)
-integer :: nsync   =  0   ! Synchronization on or off
-integer, allocatable :: mrtru(:) ! Truncations of members
+!integer :: mrworld =  0   ! MPI communication
+!integer :: mrinfo  =  0   ! MPI info
+!integer :: mrpid   = -1   ! MPI instance id
+!integer :: mrnum   =  0   ! MPI number of instances
+!integer :: mintru  =  0   ! Lowest resolution of all instances
+!integer :: mrdim   =  0   ! Exchange dimension  (min. NRSP)
+!integer :: nsync   =  0   ! Synchronization on or off    ! 特殊的同步要求 _namelist required 早晚干掉它
+!integer, allocatable :: mrtru(:) ! Truncations of members
 
-real    :: syncstr  =  0.0 ! Coupling strength (0 .. 1)
-real    :: syncsecs =  0.0 ! Coupling time [sec]
+!real    :: syncstr  =  0.0 ! Coupling strength (0 .. 1)  ! 特殊的同步要求 _namelist required 早晚干掉它
+!real    :: syncsecs =  0.0 ! Coupling time [sec]
 
-! ******************************************
-! * GUI (Graphical User Interface for X11) *
-! ******************************************
-
-!XW(Mar/25/2017) to remove GUI:
-!parameter (NPARCS = 10)         ! Number of GUI parameters
-!integer :: nguidbg   =  0       ! Flag for GUI debug output	!XW(Mar/25/2017) 0=off
-!integer :: nshutdown =  0       ! Flag for shutdown request
-!integer :: ndatim(6) = -1       ! Date & time array
-!real(kind=4) :: parc(NPARCS)    ! Values of GUI parameters
-!real(kind=4) :: crap(NPARCS)    ! Backup of parc(NPARCS)
-!logical :: ldtep   = .FALSE.    ! DTEP changed by GUI
-!logical :: ldtns   = .FALSE.    ! DTNS changed by GUI
-!character(len=32) :: yplanet = "Earth"
 
 ! ***************
 ! * Random seed *
@@ -429,63 +421,11 @@ real                 :: ganext = 0.0! y part of gaussian noise
 
 end module pumamod
 
-!***************!
-! MODULE RADMOD !
-!***************!
-
-module radmod       ! Dummy declaration for compatibility
-use pumamod         ! with PLASIM (needed in guimod)
-end module radmod
-
 
 ! ***************** !
 ! * MODULE PPPMOD * !
+! * 删除所有PPP部分: prepmod (module); ppp_def_ini; ppp_def_real; ppp_read_i; ppp_read_r
 ! ***************** !
-
-module prepmod
-integer :: num_ppp     = 0
-integer :: nlat_ppp(1) = 0
-integer :: nlev_ppp(1) = 0
-
-type ppp_type
-   character (80)   :: name    ! name of variable or array
-   logical          :: isint   ! .true. for integer
-   integer          :: n       ! length of vector (1 for scalar)
-   integer, pointer, dimension(:) :: pint    ! pointer to integer array
-   real   , pointer, dimension(:) :: preal   ! pointer to real    array
-end type ppp_type
-
-type(ppp_type) :: ppp_tab(30)
-
-contains
-
-   subroutine ppp_def_int(pname,nvar,ndim)
-      character (*)  :: pname
-      integer,target :: nvar(ndim)
-
-      num_ppp = num_ppp + 1
-      ppp_tab(num_ppp)%name  =  '[' // trim(pname) // ']'
-      ppp_tab(num_ppp)%isint =  .true.
-      ppp_tab(num_ppp)%n     =  ndim
-      ppp_tab(num_ppp)%pint  => nvar
-      ppp_tab(num_ppp)%preal => null()
-      return
-   end subroutine ppp_def_int
-
-   subroutine ppp_def_real(pname,rvar,ndim)
-      character (*)  :: pname
-      real   ,target :: rvar(ndim)
-
-      num_ppp = num_ppp + 1
-      ppp_tab(num_ppp)%name  =  '[' // trim(pname) // ']'
-      ppp_tab(num_ppp)%isint =  .false.
-      ppp_tab(num_ppp)%n     =  ndim
-      ppp_tab(num_ppp)%pint  => null()
-      ppp_tab(num_ppp)%preal => rvar
-      return
-   end subroutine ppp_def_real
-
-end module prepmod
 
 
 ! *********************
@@ -537,113 +477,129 @@ use pumamod
 ! 15-Sep-2009 - Edilbert Kirk - static arrays replaced by allocatable
 ! 15-Sep-2009 - Frank Lunkeit - diagnostics for entropy production
 ! 27-Sep-2010 - Edilbert Kirk - cleaned up ruido routines
+! 15-Mar-2017 - Xinyu Wen     - Cleanup & reorganization for PKU OpenMP version
 
-call mpstart
-call setfilenames
-call opendiag
-call read_resolution
-call resolution
-if (mrnum == 2) then
-   call mrdimensions
-endif
-call allocate_arrays
-call prolog
-call master
-call epilog
-!XW(Mar/25/2017) to remove GUI: call guistop
-call mpstop
+! Let's Rock Here !
+! "pass" implies 经过完整检查和简化，并用implicit none最后封装
+! 直接移除开始阶段的mpstart & setfilenames 和最后阶段的mpstop
+
+open(nud,file=puma_diag)   ! pass (simple)  ! opendiag简化而来
+call read_resolution       ! pass (simple)  ! 从命令行读取2个参数: NLAT, NLEV
+call resolution            ! pass (simple)  ! 设置SP和GP的分辨率参数
+call allocate_arrays       ! pass (simple)  ! 分配SP和GP所有动态数组的内存空间
+call prolog                ! pass (complex) ! 初始化 ......
+call master                ! pass (complex) ! Key: gridpoint & spectral
+call epilog                ! pass (simple)  ! 终止化 关闭_output; 写restart; 显示时间信息
 
 print *, "STOP Normally!!!"
-stop
 end program puma_main
 
 
-! ***************************
-! * SUBROUTINE SETFILENAMES *
-! ***************************
+! ==========================
+! SUBROUTINE READ_RESOLUTION
+! ==========================
+subroutine read_resolution
+   use pumamod
+   implicit none
 
-subroutine setfilenames
-use pumamod
-
-character (3) :: mrext
-
-if (mrpid <  0) return ! no multirun
-
-write(mrext,'("_",i2.2)') mrpid
-
-puma_namelist       = trim(puma_namelist      ) // mrext
-puma_output         = trim(puma_output        ) // mrext
-puma_diag           = trim(puma_diag          ) // mrext
-puma_restart        = trim(puma_restart       ) // mrext
-puma_status         = trim(puma_status        ) // mrext
-efficiency_dat      = trim(efficiency_dat     ) // mrext
-ppp_puma_txt        = trim(ppp_puma_txt       ) // mrext
-puma_sp_init        = trim(puma_sp_init       ) // mrext
-
-return
-end
+   character (80) :: ylat
+   character (80) :: ylev
+   call get_command_argument(1,ylat)
+   call get_command_argument(2,ylev)
+   read(ylat,*) nlat
+   read(ylev,*) nlev
+end subroutine
 
 
-! ***********************
-! * SUBROUTINE OPENDIAG *
-! ***********************
+! =====================
+! SUBROUTINE RESOLUTION
+! =====================
+subroutine resolution
+   use pumamod
+   implicit none
 
-subroutine opendiag
-use pumamod
+   ! 垂直方向
+   nlem = nlev - 1
+   nlep = nlev + 1
+   nlsq = nlev * nlev
 
-if (mypid == NROOT) then
-   open(nud,file=puma_diag)
-endif
+   ! 水平方向
+   nlon = nlat + nlat                  ! Longitudes
+   nlah = nlat / 2
+   nlpp = nlat
+   nhpp = nlat / 2                     ! N-S数据对
+   nhor = nlon * nlat
+   nugp = nlon * nlat
+   npgp = nlon * nlat / 2
 
-return
-end
+   ! 谱空间
+   ntru = (nlon - 1) / 3               ! 截断波数，比如：21 for T21, 42 for T42
+   ntp1 = ntru + 1
+   nzom = ntp1 * 2
+   nrsp = (ntru + 1) * (ntru + 2)      ! 所有SP谱空间系数，Pn重复一遍有ntru+1个点 (22x23=506 for T21)
+   ncsp = nrsp / 2                     !     ^----------- 的右一半，左一半与之共轭
+   !nspp = (nrsp + npro - 1) / npro    ! 分配到每个processor上的SP谱空间mode
+   !nesp = nspp * npro                 ! 扩展的所有SP谱空间系数
+   !nesp = nesp + 3 - mod(nesp-1,4)    ! 506+3-mod(506-1,4) = 506+3-1 = 508
+                                       ! 在前面此值为506, why? I guess it should be "nrsp" too!
+   nspp = nrsp
+   nesp = nrsp
+end subroutine resolution
 
 
 ! ******************************
 ! * SUBROUTINE ALLOCATE_ARRAYS *
 ! ******************************
-
 subroutine allocate_arrays
 use pumamod
+implicit none
 
-allocate(sd(nesp,nlev))   ; sd(:,:)  = 0.0 ! Spectral Divergence
+! SP全模态 (nesp)
 allocate(st(nesp,nlev))   ; st(:,:)  = 0.0 ! Spectral Temperature
+allocate(sd(nesp,nlev))   ; sd(:,:)  = 0.0 ! Spectral Divergence
 allocate(sz(nesp,nlev))   ; sz(:,:)  = 0.0 ! Spectral Vorticity
 allocate(sp(nesp))        ; sp(:)    = 0.0 ! Spectral Pressure (ln Ps)
 allocate(so(nesp))        ; so(:)    = 0.0 ! Spectral Orography
 allocate(sr1(nesp,nlev))  ; sr1(:,:) = 0.0 ! Spectral Restoration Temperature
 allocate(sr2(nesp,nlev))  ; sr2(:,:) = 0.0 ! Spectral Restoration Temperature
-allocate(sdp(nspp,nlev))  ; sdp(:,:) = 0.0 ! Spectral Divergence  Partial
+
+! 每个CPU分配的SP部分模态 (nspp)
 allocate(stp(nspp,nlev))  ; stp(:,:) = 0.0 ! Spectral Temperature Partial
+allocate(sdp(nspp,nlev))  ; sdp(:,:) = 0.0 ! Spectral Divergence  Partial
 allocate(szp(nspp,nlev))  ; szp(:,:) = 0.0 ! Spectral Vorticity   Partial
 allocate(spp(nspp))       ; spp(:)   = 0.0 ! Spectral Pressure    Partial
 allocate(sop(nspp))       ; sop(:)   = 0.0 ! Spectral Orography   Partial
 allocate(srp1(nspp,nlev)) ; srp1(:,:)= 0.0 ! Spectral Restoration Partial
 allocate(srp2(nspp,nlev)) ; srp2(:,:)= 0.0 ! Spectral Restoration Partial
-allocate(sdt(nspp,nlev))  ; sdt(:,:) = 0.0 ! Spectral Divergence  Tendency
+
 allocate(stt(nspp,nlev))  ; stt(:,:) = 0.0 ! Spectral Temperature Tendency
+allocate(sdt(nspp,nlev))  ; sdt(:,:) = 0.0 ! Spectral Divergence  Tendency
 allocate(szt(nspp,nlev))  ; szt(:,:) = 0.0 ! Spectral Vorticity   Tendency
 allocate(spt(nspp))       ; spt(:)   = 0.0 ! Spectral Pressure    Tendency
-allocate(sdm(nspp,nlev))  ; sdm(:,:) = 0.0 ! Spectral Divergence  Minus
+
 allocate(stm(nspp,nlev))  ; stm(:,:) = 0.0 ! Spectral Temperature Minus
+allocate(sdm(nspp,nlev))  ; sdm(:,:) = 0.0 ! Spectral Divergence  Minus
 allocate(szm(nspp,nlev))  ; szm(:,:) = 0.0 ! Spectral Vorticity   Minus
 allocate(spm(nspp))       ; spm(:)   = 0.0 ! Spectral Pressure    Minus
+
 allocate(sak(nesp))       ; sak(:)   = 0.0 ! Hyper diffusion
 allocate(srcn(nesp))      ; srcn(:)  = 0.0 ! 1.0 / (n * (n+1))
 allocate(span(nesp))      ; span(:)  = 0.0 ! Pressure for diagnostics
 allocate(spnorm(nesp))    ; spnorm(:)= 0.0 ! Factors for output normalization
 
 allocate(nindex(nesp))    ; nindex(:)  = ntru ! Holds wavenumber
-allocate(nscatsp(npro))   ; nscatsp(:) = nspp ! Used for reduce_scatter op
+allocate(nscatsp(npro))   ; nscatsp(:) = nspp ! Used for reduce_scatter op    ! WHAT???
 allocate(nselzw(0:ntru))  ; nselzw(:)  =    1 ! Enable selected zonal waves
 allocate(nselsp(ncsp))    ; nselsp(:)  =    1 ! Enable slected spectral modes
 
-allocate(gd(nhor,nlev))   ; gd(:,:)  = 0.0 ! Divergence
+! 格点空间 (nhor=NLONxNLAT)
 allocate(gt(nhor,nlev))   ; gt(:,:)  = 0.0 ! Temperature
+allocate(gd(nhor,nlev))   ; gd(:,:)  = 0.0 ! Divergence
 allocate(gz(nhor,nlev))   ; gz(:,:)  = 0.0 ! Vorticity
 allocate(gu(nhor,nlev))   ; gu(:,:)  = 0.0 ! u * cos(phi)
 allocate(gv(nhor,nlev))   ; gv(:,:)  = 0.0 ! v * sin(phi)
 allocate(gp(nhor))        ; gp(:)    = 0.0 ! Ln(Ps)
+
 allocate(gfu(nhor,nlev))  ; gfu(:,:) = 0.0 ! Term Fu in Primitive Equations
 allocate(gfv(nhor,nlev))  ; gfv(:,:) = 0.0 ! Term Fv in Primitive Equations
 allocate(gut(nhor,nlev))  ; gut(:,:) = 0.0 ! Term u * T
@@ -651,85 +607,115 @@ allocate(gvt(nhor,nlev))  ; gvt(:,:) = 0.0 ! Term v * T
 allocate(gke(nhor,nlev))  ; gke(:,:) = 0.0 ! Kinetic energy u * u + v * v
 allocate(gpj(nhor))       ; gpj(:)   = 0.0 ! d(Ln(Ps)) / d(mu)
 
-
 allocate(rcsq(nhor))      ; rcsq(:)  = 0.0 ! 1 / cos2(phi)
 
-allocate(ndil(nlev))        ; ndil(:)  = 0
-allocate(csu(nlat,nlev))    ; csu(:,:) = 0.0
-allocate(csv(nlat,nlev))    ; csv(:,:) = 0.0
-allocate(cst(nlat,nlev))    ; cst(:,:) = 0.0
+! 切片用
+allocate(ndil(nlev))      ; ndil(:)  = 0
+allocate(csu(nlat,nlev))  ; csu(:,:) = 0.0
+allocate(csv(nlat,nlev))  ; csv(:,:) = 0.0
+allocate(cst(nlat,nlev))  ; cst(:,:) = 0.0
 
-allocate(chlat(nlat))       ; chlat(:) = '   '
-allocate(sid(nlat))         ; sid(:)   = 0.0  ! sin(phi)
-allocate(gwd(nlat))         ; gwd(:)   = 0.0  ! Gaussian weight (phi)
-allocate(csq(nlat))         ; csq(:)   = 0.0  ! cos2(phi)
-allocate(rcs(nlat))         ; rcs(:)   = 0.0  ! 1/cos(phi)
+! 与南北纬度有关的参数
+allocate(chlat(nlat))     ; chlat(:) = '   '
+allocate(sid(nlat))       ; sid(:)   = 0.0      ! sin(phi)
+allocate(gwd(nlat))       ; gwd(:)   = 0.0      ! Gaussian weight (phi)
+allocate(csq(nlat))       ; csq(:)   = 0.0      ! cos2(phi)
+allocate(rcs(nlat))       ; rcs(:)   = 0.0      ! 1/cos(phi)
 
-allocate(t0(nlev))     ; t0(:)     = 250.0  ! reference temperature
-allocate(t0d(nlev))    ; t0d(:)    =   0.0  ! vertical t0 gradient
-allocate(damp(nlev))   ; damp(:)   =   0.0  ! 1.0 / (2 Pi * taur)
-allocate(fric(nlev))   ; fric(:)   =   0.0  ! 1.0 / (2 Pi * tauf)
-allocate(dsigma(nlev)) ; dsigma(:) =   0.0
-allocate(rdsig(nlev))  ; rdsig(:)  =   0.0
-allocate(sigma(nlev))  ; sigma(:)  =   0.0
-allocate(sigmh(nlev))  ; sigmh(:)  =   0.0
-allocate(tkp(nlev))    ; tkp(:)    =   0.0
-allocate(c(nlev,nlev)) ; c(:,:)    =   0.0
-allocate(xlphi(nlev,nlev)) ; xlphi(:,:) = 0.0 ! matrix Lphi (g)
-allocate(xlt(nlev,nlev))   ; xlt(:,:)   = 0.0 ! matrix LT (tau)
+! 与垂直层结有关的参数
+allocate(t0(nlev))        ; t0(:)     = 250.0   ! reference temperature
+allocate(t0d(nlev))       ; t0d(:)    =   0.0   ! vertical t0 gradient
+allocate(damp(nlev))      ; damp(:)   =   0.0   ! 1.0 / (2 Pi * taur)
+allocate(fric(nlev))      ; fric(:)   =   0.0   ! 1.0 / (2 Pi * tauf)
+allocate(dsigma(nlev))    ; dsigma(:) =   0.0
+allocate(rdsig(nlev))     ; rdsig(:)  =   0.0
+allocate(sigma(nlev))     ; sigma(:)  =   0.0
+allocate(sigmh(nlev))     ; sigmh(:)  =   0.0
+allocate(tkp(nlev))       ; tkp(:)    =   0.0
+allocate(c(nlev,nlev))    ; c(:,:)    =   0.0
+allocate(xlphi(nlev,nlev)); xlphi(:,:) = 0.0    ! matrix Lphi (g)
+allocate(xlt(nlev,nlev))  ; xlt(:,:)   = 0.0    ! matrix LT (tau)
 allocate(bm1(nlev,nlev,0:NTRU)) ; bm1(:,:,:)  = 0.0
 
-if (mrnum == 2) then
-   allocate(sdd(nesp,nlev))   ; sdd(:,:)  = 0.0
-   allocate(std(nesp,nlev))   ; std(:,:)  = 0.0
-   allocate(szd(nesp,nlev))   ; szd(:,:)  = 0.0
-   allocate(spd(nesp     ))   ; spd(:  )  = 0.0
-endif
-
-return
+!if (mrnum == 2) then
+!   allocate(std(nesp,nlev))   ; std(:,:)  = 0.0   ! instance之间的T差别
+!   allocate(sdd(nesp,nlev))   ; sdd(:,:)  = 0.0   ! instance之间的div差别
+!   allocate(szd(nesp,nlev))   ; szd(:,:)  = 0.0   ! instance之间的vor差别
+!   allocate(spd(nesp     ))   ; spd(:  )  = 0.0   ! instance之间的Ps差别
+!endif
 end subroutine allocate_arrays
 
 
 ! =================
 ! SUBROUTINE PROLOG
 ! =================
+! XW(2017/4/16)
+! 以下有"?"的部分
+! 没经过understanding & implicit none检查
+!------------------
+! Calling tree:
+! - restart_ini         : 读入restart file的变量名列表
+! - inigau              : 计算Gauss纬度权重gwd及sin纬度sid
+!   ql & qld            : Legendre and Associated Legendre functions
+! - inilat              : 设置csq, rcs, chlat
+! - legpri              : 只打印一个表格显示lat, csq, gwd
+! - readnl              : 读入_namelist并显示出来，修正基本的尺度因子
+! - ppp_interface       : 读入ppp产生的输出文本并与_namelist对比看是否一致 (ALL DELETED)
+!   ppp_define_ini
+!   ppp_define_real
+!   ppp_read_i
+!   ppp_read_r
+! - initpm (complex)    : 准备用于快速计算用的各种垂向数组
+!   select_zonal_waves    如果T21的22个纬向波数(m)都打开(=1)，那么就关闭滤波；否则打开，有波数损失
+!   select_spectral_modes 如果T21的所有经向波数(m,n)都打开，那么就关闭滤波；否则打开，有模态损失
+!   set_vertical_grid     设置sigma levels (3 methods selectable)
+!   sponge              : 计算模式最顶层使用Rayleigh摩擦的系数fric(NLEV)
+! - initsi              : 半隐时间方案初始化
+! - altlat              : csq(reg2d) to csq(alt2d)
+! - initrandom          : 设随机数种子
+! - initruido           : 分配ruido,ruidop数组
+!   mpscgp(nuido,nuidop): 分发nuido
+! - legini              : SP初始化, 计算Legendre Polynomials和其它SP空间参数
+! - if(lrestart)        : 最终来到最重要的初始化分支！
+!   = 1                 : --- Restart
+!     read_atmos_restart: 如果使用restart，读入restartfile变量，随机数种子，并设置水球理想
+!     noise             : 随机数种子，并设置水球理想
+!     setzt             : 设置水球理想T回复场（sr1=年平均；sr2=季节循环）
+!   = 0                 : --- Init from zero
+!   initfd              : GP空间初始化(key)
+! ?   read_surf         : 读入surf变量（地表高度等）
+! ?   read_vargp        : 读入其它变量
+!     setzt             : 设置水球理想T回复场（sr1=年平均；sr2=季节循环）
+!     printprofile      : 打印垂直profile表格
+! - printseed           : 打印随机种子(three sources: 1 namelist; 2 clock initialized; 3 restart file)
+! - ntomin              : 时间步数 to 年月日时分
+! - mastercpu_time      : 系统时间，现在只向月初对齐，以后可改为向2000年对齐
+! - io_open_output      : 新输出格式(GrADS)初始化
 
 subroutine prolog
 use pumamod
+implicit none
 
-character( 8) :: cpuma       = 'PUMA-II '
-character(80) :: pumaversion = '16.0 (27-Sep-2010)'
-real :: zsig(nlon*nlat)
+real     :: zsig(nlon*nlat)   ! 实际只用前几个数保存sigma值，只借用2D壳而已，便于Service记录
+integer  :: istep,iyear,imonth,iday,ihour,imin  ! 临时保存时间信息,用于向_output写入第一个2D记录zsig（sigma信息）
+integer  :: jlat              ! loop var
 
-if (mypid == NROOT) then
+!if (mypid == NROOT) then
    call mastercpu_time(tmstart)   ! XW(2017/4/9): replace cpu_time(tmstart) to accurate OpenMP time cost
-   write(nud,'(/," ****************************************************")')
-   write(nud,'(" * PUMA ",a43," *")') trim(pumaversion)
-   write(nud,'(" ****************************************************")')
-   if (mrnum == 0) then
-   write(nud,'(" * NTRU =",i4,"  NLEV =",i4,"  NLON = ",i4,"   NLAT =",i4," *")') &
-      NTRU,NLEV,NLON,NLAT
-   else
-      do jpid = 1 , mrnum
-   write(nud,'(" * PID  =",i4,"  NTRU =",i4,"  NLEV = ",i4,"              *")') &
-         jpid-1,mrtru(jpid),NLEV
-      enddo
-   endif
-   write(nud,'(" ****************************************************")')
-   if (NPRO > 1) then
-     write(nud,'(/," ****************************************************")')
-     do jpro = 1 , NPRO
-        write(nud,'(" * CPU",i4,1x,a40," *")') jpro-1,ympname(jpro)
-     enddo
-     write(nud,'(" ****************************************************")')
-   endif
+   write(nud, '("********************************************************")')
+   write(nud, '("* Peking University General Circulation Model (PKUGCM) *")')
+   write(nud, '("* based on PUMA from University of Hamburg             *")')
+   write(nud, '("********************************************************")')
+   write(nud, '("  NTRU =",i4,"  NLEV =",i4,"  NLON = ",i4,"   NLAT =",i4 )') NTRU,NLEV,NLON,NLAT
+   write(nud, '("********************************************************")')
+
    call restart_ini(lrestart,puma_restart)
    !call fftini(NLON) XW(2017/4/11): I added this line incorrectly. Affect MPI.
    call inigau(NLAT,sid,gwd)
    call inilat
    call legpri
    call readnl
-   call ppp_interface
+   !call ppp_interface  完全不必要
    call initpm
    call initsi
    call altlat(csq,NLAT) ! csq -> alternating grid
@@ -737,205 +723,118 @@ if (mypid == NROOT) then
    if (nrun == 0 .and. nstop  > 0) nrun = nstop-nstep
    if (nrun == 0) nrun = ntspd * (nyears * 360 + nmonths * 30)
    call initrandom     ! set random seed
-endif ! (mypid == NROOT)
+!endif ! (mypid == NROOT)
 
-call mpbci(nruido)
 call initruido      ! allocate ruido arrays
 
+! scatter gridpoint arrays
+! 虽然是scatter，但这里并不能写成ruidop=ruido
+! 因为ruido(nlon,nlat,nlev), ruidop(nhor,nlev)两者维度rank不同
+! 可见通过mpscgp只是达到了方便快捷地transform数组的作用
+if (nruido > 0) ruidop = reshape(ruido,(/nhor,nlev/)) !call mpscgp(ruido,ruidop,NLEV)
 
-!XW(Mar/25/2017) to remove GUI: if (nshutdown > 0) return ! If something went wrong in the init routines
 
 ! ***********************
 ! * broadcast & scatter *
+! * 全部删除            *
+!   broadcast integer
+!   broadcast logical
+!   broadcast real
+!   broadcast integer arrays
+!   broadcast real arrays
+!   scatter integer arrays
 ! ***********************
-
-call mpscdn(sid,NHPP) ! real (kind=8)
-call mpscdn(gwd,NHPP) ! real (kind=8)
-call mpscrn(csq,NLPP)
 
 do jlat = 1 , NLPP
    rcsq(1+(jlat-1)*NLON:jlat*NLON) = 1.0 / csq(jlat)
 enddo
 
-!     broadcast integer
-
-call mpbci(kick    ) ! add noise for kick > 0
-call mpbci(nafter  ) ! write data interval [steps]
-call mpbci(nwpd    ) ! write data interval [writes per day]
-call mpbci(ncoeff  ) ! number of modes to print
-call mpbci(ndel    ) ! ndel
-call mpbci(noutput ) ! global output switch
-call mpbci(ndiag   ) ! write diagnostics interval
-call mpbci(ngui    ) ! GUI on (1) or off (0)
-call mpbci(nkits   ) ! number of initial timesteps
-call mpbci(nlevt   ) ! tropospheric levels
-call mpbci(nrun    ) ! if (nstop == 0) nstop = nstep + nrun
-call mpbci(nstep   ) ! current timestep
-call mpbci(nstop   ) ! finishing timestep
-call mpbci(ntspd   ) ! number of timesteps per day
-call mpbci(mpstep  ) ! minutes per step
-call mpbci(nyears  ) ! simulation time
-call mpbci(nmonths ) ! simulation time
-call mpbci(nextout ) ! write extended output
-call mpbci(nsponge)  ! Switch for sponge layer
-call mpbci(nhelsua)  ! Held & Suarez forcing
-call mpbci(ndiagp)   ! 0/1 switch for new grid point diabatic heating
-call mpbci(nconv)    ! 0/1 switch for convective heating
-call mpbci(nvg    )  ! Type of vertical grid
-call mpbci(nenergy)  ! energy diagnostics
-call mpbci(nentropy) ! entropy diagnostics
-call mpbci(ndheat)   ! energy recycling
-call mpbci(nradcv)   ! use two restoration fields
-
-!     broadcast logical
-
-call mpbcl(lrestart) ! true: read restart file, false: initial run
-call mpbcl(lselect ) ! true: disable some zonal waves
-call mpbcl(lspecsel) ! true: disable some spectral modes
-
-!     broadcast real
-
-call mpbcr(ww_time ) ! time scale [sec] = 1 day for Earth
-call mpbcr(ww_scale) ! reciprocal of time scale [1/sec]
-call mpbcr(v_scl   )   
-call mpbcr(ct      )   
-call mpbcr(cv      )
-call mpbcr(sid_day ) 
-call mpbcr(sol_day ) 
-call mpbcr(plarad  )   
-call mpbcr(gascon  )   
-call mpbcr(akap    )    
-call mpbcr(alr     )  
-call mpbcr(ga      ) 
-call mpbcr(psurf   )  
-call mpbcr(alpha   ) ! Williams factor for time filter
-call mpbcr(dtep    ) ! equator-pole temperature difference
-call mpbcr(dtns    )
-call mpbcr(dtrop   )
-call mpbcr(dttrp   )
-call mpbcr(diffts  ) ! diffusion time scale [sec]
-call mpbcr(tac     )
-call mpbcr(pac     )
-call mpbcr(plavor  )
-call mpbcr(rotspd  )
-call mpbcr(sigmax  ) ! sigma of top half level
-call mpbcr(tgr     )
-call mpbcr(dvdiff  )
-call mpbcr(disp    )
-call mpbcr(tauta   )
-call mpbcr(tauts   )
-call mpbcr(pspon   )
-call mpbcr(dcsponge)
-call mpbcr(spstep  ) ! seconds per step
-
-!     broadcast integer arrays
-
-call mpbcin(ndil  ,NLEV)
-call mpbcin(nselzw,NTP1)
-
-!     broadcast real arrays
-
-call mpbcrn(damp  ,NLEV)
-call mpbcrn(dsigma,NLEV)
-call mpbcrn(fric  ,NLEV)
-call mpbcrn(rdsig ,NLEV)
-call mpbcrn(taur  ,NLEV)
-call mpbcrn(sigma ,NLEV)
-call mpbcrn(sigmh ,NLEV)
-call mpbcrn(t0    ,NLEV)
-call mpbcrn(t0d   ,NLEV)
-call mpbcrn(tauf  ,NLEV)
-call mpbcrn(tkp   ,NLEV)
-
-call mpbcrn(c     ,NLSQ)
-call mpbcrn(xlphi ,NLSQ)
-call mpbcrn(xlt   ,NLSQ)
-
-!     scatter integer arrays
-
-call mpscin(nindex,NSPP)
-call mpscrn(srcn  ,NSPP)
-call mpscrn(sak   ,NSPP)
-
 call legini(nlat,nlpp,nesp,nlev,plavor,sid,gwd)
 
 if (lrestart) then
    call read_atmos_restart
-   if (mypid == NROOT) then
+   !if (mypid == NROOT) then
       if (kick > 10) call noise(kick-10)
       if (newsr > 0) call setzt
-   endif
+   !endif
 else
    call initfd
 endif
 
-if (mypid == NROOT) then
+!if (mypid == NROOT) then
    call printseed ! either namelist, clock initialized or from restart file
-endif
+!endif
 
-!     broadcast spectral arrays
-
-call mpbcrn(sp,NESP)
-call mpbcrn(sd,NESP*NLEV)
-call mpbcrn(st,NESP*NLEV)
-call mpbcrn(sz,NESP*NLEV)
-
-!     scatter spectral arrays
-
-call mpscsp(sd,sdp,NLEV)
-call mpscsp(st,stp,NLEV)
-call mpscsp(sz,szp,NLEV)
-call mpscsp(sr1,srp1,NLEV)
-call mpscsp(sr2,srp2,NLEV)
-call mpscsp(sp,spp,1)
-call mpscsp(so,sop,1)
-
-!     scatter gridpoint arrays
-
-if (nruido > 0) call mpscgp(ruido,ruidop,NLEV)
+!     broadcast spectral arrays  删除4行
+!     scatter spectral arrays    
+!     以下7行不能删除，否则会导致全零场的积分僵化，scatter本质是复制操作，可简化为
+sdp   = sd  ! call mpscsp(sd,sdp,NLEV)
+stp   = st  ! call mpscsp(st,stp,NLEV)
+szp   = sz  ! call mpscsp(sz,szp,NLEV)
+srp1  = sr1 ! call mpscsp(sr1,srp1,NLEV)
+srp2  = sr2 ! call mpscsp(sr2,srp2,NLEV)
+spp   = sp  ! call mpscsp(sp,spp,1)
+sop   = so  ! call mpscsp(so,sop,1)
 
 !
 !     initialize energy and entropy diagnostics
 !
 if(nenergy > 0) then
  allocate(denergy(NHOR,9))
- denergy(:,:)=0.
+ denergy(:,:)=0.0
 endif
 if(nentropy > 0) then
  allocate(dentropy(NHOR,9))
- dentropy(:,:)=0.
+ dentropy(:,:)=0.0
 endif
-if(ndheat > 1 .and. mypid == NROOT) then
+if(ndheat > 1) then
  open(9,file=efficiency_dat,form='formatted')
 endif
 !
 !     write first service record containing sigma coordinates
 !
-if (mypid == NROOT) then
-   if (noutput==1) then
+!if (mypid == NROOT) then
+   if (noutput == 1) then
       istep = nstep
       if (istep > 0) istep = istep + nafter ! next write after restart
       open(40,file=puma_output,form='unformatted')
       call ntomin(istep,imin,ihour,iday,imonth,iyear)
-      zsig(1:nlev) = sigmh(:)
+      zsig(1:nlev) = sigmh(:)    ! zsig(nlon,nlat)只用了前10个数来保存level的sigma值，其它无用
       zsig(nlev+1:) = 0.0
       write(40) 333,0,iyear*10000+imonth*100+iday,0,nlon,nlat,nlev,ntru
       write(40) zsig
    endif
+
+   !XW(2017/4/12): init new outputs
    if (noutput==2) call io_open_output
-endif ! (mypid == NROOT)
-return
+!endif
 end subroutine prolog
 
 
-!===================!
-! SUBROUTINE MASTER !
-!================== !
-
+!===========================!
+! SUBROUTINE MASTER         !
+! Calling tree              !
+! - makebm    P: 计算B矩阵  !
+! ? minvers
+! ?   ludcmp
+! ?   lubksb
+! - gridpoint P: GP空间计算 !
+! - spectral   : SP空间计算 !
+! - outsp      : Output SP  !
+! - outgp      : Output GP  !
+! - diag
+! ?   prisp
+! ?      wrspam
+! ?   xsect
+! ?      wrzs
+! ?   energy
+! ?      rmssp
+! ?      powerspec
+! ?      powerprint
+! - checkunit
+!===========================!
 subroutine master
 use pumamod
-
-!XW(Mar/25/2017) to remove GUI: if (nshutdown > 0) return ! if something went wrong in prolog already
 
 ! ***************************
 ! * short initial timesteps *
@@ -958,36 +857,31 @@ call makebm
 nstep1 = nstep ! remember 1.st timestep
 
 do jstep = 1 , nrun
+
    nstep = nstep + 1
-   !XW(Mar/25/2017) to remove GUI: call ntomin(nstep,ndatim(5),ndatim(4),ndatim(3),ndatim(2),ndatim(1))
 
 !  ************************************************************
 !  * calculation of non-linear quantities in grid point space *
 !  ************************************************************
 
    call gridpoint
-
-   if (mypid == NROOT) then
-      if (mod(nstep,nafter) == 0 .and. noutput==1) call outsp
-      if (mod(nstep,ndiag ) == 0 .or. ngui > 0) call diag
+   !if (mypid == NROOT) then
+      if (mod(nstep,nafter)==0 .and. noutput==1) call outsp
+      if (mod(nstep,ndiag )==0) call diag
       if (ncu > 0) call checkunit
-   endif
-   !XW(Mar/25/2017) to remove GUI: if (ngui > 0) call guistep_puma
+   !endif
 
 !  ******************************
 !  * adiabatic part of timestep *
 !  ******************************
 
    call spectral
-   if (mod(nstep,nafter) == 0 .and. noutput==1) call outgp
+   if (mod(nstep,nafter)==0 .and. noutput==1) call outgp
 
    ! XW: pku output format
-   if (mypid == NROOT) then
-      if (mod(nstep,nafter) == 0 .and. noutput==2) call io_write_output
-   end if
-
+   if (mod(nstep,nafter)==0 .and. noutput==2) call io_write_output
 enddo
-return
+
 end subroutine master
 
 
@@ -997,17 +891,18 @@ end subroutine master
 
       subroutine epilog
       use pumamod
-      real    :: zut,zst                       ! XW(2017-4-7): remove "(kind=8)" at 2 lines
-      integer :: imem,ipr,ipf,isw,idr,idw
+      implicit none
 
-      if (mypid == NROOT) then
-         if (noutput==1) close(40)            ! close output file
-         if (noutput==2) call io_close_output
-      end if
+      real    :: tmrun, zspy, zypd
+
+      close(40)   ! close "_output" file
+
+      ! XW(2017/4/12): close new output files
+      if (noutput==2) call io_close_output 
 
 !     write restart file
 
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          call restart_prepare(puma_status)
          sp(1) = psmean ! save psmean
          call put_restart_integer('nstep'   ,nstep   )
@@ -1032,39 +927,44 @@ end subroutine master
          if (nruido > 0) then
             call put_restart_array('ruido',ruido,nugp,nugp,nlev)
          endif
-      endif
+      !endif
 
-      call mpputsp('szm',szm,NSPP,NLEV)
-      call mpputsp('sdm',sdm,NSPP,NLEV)
-      call mpputsp('stm',stm,NSPP,NLEV)
-      call mpputsp('spm',spm,NSPP,   1)
+      ! 以下写sp和gp数组的函数，貌似是mpi_stub里的，实际都可以直接跨过
+      ! 今后把mpi的这些函数都去掉，直接调用它们调用的mod_restart里的put_restart_array
+
+!     write sp arrays
+
+      call put_restart_array('szm',szm,NSPP,NSPP,NLEV)            !mpputsp('szm',szm,NSPP,NLEV)
+      call put_restart_array('sdm',sdm,NSPP,NSPP,NLEV)            !mpputsp('sdm',sdm,NSPP,NLEV)
+      call put_restart_array('stm',stm,NSPP,NSPP,NLEV)            !mpputsp('stm',stm,NSPP,NLEV)
+      call put_restart_array('spm',spm,NSPP,NSPP,   1)            !mpputsp('spm',spm,NSPP,   1)
 
 !     write gridpoint arrays
 
       if (allocated(gr1)) then
-         call mpputgp('gr1',gr1,nhor,nlev)
+         call put_restart_array('gr1',gr1,nhor,nhor,nlev)         !mpputgp('gr1',gr1,nhor,nlev)
       endif
       if (allocated(gr2)) then
-         call mpputgp('gr2',gr2,nhor,nlev)
+         call put_restart_array('gr2',gr2,nhor,nhor,nlev)         !mpputgp('gr2',gr2,nhor,nlev)
       endif
       if (allocated(gtdamp)) then
-         call mpputgp('gtdamp',gtdamp,nhor,nlev)
+         call put_restart_array('gtdamp',gtdamp,nhor,nhor,nlev)   !mpputgp('gtdamp',gtdamp,nhor,nlev)
       endif
 
       if (allocated(gr1c)) then
-         call mpputgp('gr1c',gr1c,nhor,nlev)
+         call put_restart_array('gr1c',gr1c,nhor,nhor,nlev)       !mpputgp('gr1c',gr1c,nhor,nlev)
       endif
       if (allocated(gr2c)) then
-         call mpputgp('gr2c',gr2c,nhor,nlev)
+         call put_restart_array('gr2c',gr2c,nhor,nhor,nlev)       !mpputgp('gr2c',gr2c,nhor,nlev)
       endif
       if (allocated(gtdampc)) then
-         call mpputgp('gtdampc',gtdampc,nhor,nlev)
+         call put_restart_array('gtdampc',gtdampc,nhor,nhor,nlev) !mpputgp('gtdampc',gtdampc,nhor,nlev)
       endif
 
-      if (mypid == NROOT) then 
+      !if (mypid == NROOT) then 
 !        Get resource stats from function resources in file pumax.c
 
-         ires = 1
+         !ires = 1
          !XW/Mar-23-2017: this line need to call a function in pumax.c
          !ires = nresources(zut,zst,imem,ipr,ipf,isw,idr,idw)
 
@@ -1074,26 +974,9 @@ end subroutine master
          if (nstep > nstep1) then 
             zspy = tmrun * 360.0 * real(ntspd) / (nstep - nstep1) ! sec / siy
             zypd = (24.0 * 3600.0 / zspy)                         ! siy / day
-            write(nud,'(/,"****************************************")')
-            !if (zut > 0.0) &
-            write(nud,  '("* User   time         : ", f10.3," sec * N/A")') zut
-            !if (zst > 0.0) &
-            write(nud,  '("* System time         : ", f10.3," sec * N/A")') zst
-            !if (zut + zst > 0.0) tmrun = zut + zst
-            write(nud,  '("* Total CPU time      : ", f10.3," sec *")') tmrun
-            !if (imem > 0) &
-            write(nud,  '("* Memory usage        : ", f10.3," MB  * N/A")') imem * 0.000001
-            !if (ipr > 0 .and. ipr < 1000000) &
-            write(nud,  '("* Page reclaims       : ", i6," pages   * N/A")') ipr
-            !if (ipf > 0 .and. ipf < 1000000) &
-            write(nud,  '("* Page faults         : ", i6," pages   * N/A")') ipf
-            !if (isw > 0 .and. isw < 1000000) &
-            write(nud,  '("* Page swaps          : ", i6," pages   * N/A")') isw
-            !if (idr > 0 .and. idr < 1000000) &
-            write(nud,  '("* Disk read           : ", i6," blocks  * N/A")') idr
-            !if (idw > 0 .and. idw < 1000000) &
-            write(nud,  '("* Disk write          : ", i6," blocks  * N/A")') idw
-            write(nud,'("****************************************")')
+            write(nud, '(/,"****************************************")')
+            write(nud, '("* Total CPU time      : ", f10.3," sec *")') tmrun
+            write(nud, '("****************************************")')
             if (zspy < 600.0) then
                write(nud,'("* Seconds per sim year: ",i6,9x,"*")') nint(zspy)
             else if (zspy < 900000.0) then
@@ -1104,10 +987,9 @@ end subroutine master
             write(nud,'("* Sim years per day   :",i7,9x,"* <-- Running Speed Index")') nint(zypd)
             write(nud,'("****************************************")')
          endif
-      endif
-
-      return
+      !endif
       end subroutine epilog
+
 
 !     =============================
 !     SUBROUTINE READ_ATMOS_RESTART
@@ -1115,12 +997,14 @@ end subroutine master
 
       subroutine read_atmos_restart
       use pumamod
+      implicit none
 
       integer :: k = 0
+      integer :: ktmp
 
 !     read scalars and full spectral arrays
 
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          call get_restart_integer('nstep',nstep)
          call get_restart_array('seed',meed,nseedlen,nseedlen,1)
          call get_restart_array('ganext',ganext,1,1,1)
@@ -1137,59 +1021,64 @@ end subroutine master
          psmean = sp(1)
          sp(1)  = 0.0
          call random_seed(put=meed)
-      endif
+      !endif
 
-      call mpbci(nstep)     ! broadcast current timestep
-      call mpbcr(psmean)    ! broadcast mean surface pressure
+      !call mpbci(nstep)     ! broadcast current timestep
+      !call mpbcr(psmean)    ! broadcast mean surface pressure
 
 !     read and scatter spectral arrays
 
-      call mpgetsp('szm',szm,NSPP,NLEV)
-      call mpgetsp('sdm',sdm,NSPP,NLEV)
-      call mpgetsp('stm',stm,NSPP,NLEV)
-      call mpgetsp('spm',spm,NSPP,   1)
+      call get_restart_array('szm',szm,NSPP,NSPP,NLEV)   !mpgetsp('szm',szm,NSPP,NLEV)
+      call get_restart_array('sdm',sdm,NSPP,NSPP,NLEV)   !mpgetsp('sdm',sdm,NSPP,NLEV)
+      call get_restart_array('stm',stm,NSPP,NSPP,NLEV)   !mpgetsp('stm',stm,NSPP,NLEV)
+      call get_restart_array('spm',spm,NSPP,NSPP,   1)   !mpgetsp('spm',spm,NSPP,   1)
 
 !     allocate, read and scatter gridpoint arrays
 
-      if (mypid == NROOT) call varseek('gr1',ktmp)
-      call mpbci(ktmp)
+      call varseek('gr1',ktmp)
+      !call mpbci(ktmp)
       if (ktmp > 0) then 
          allocate(gr1(nhor,nlev))
-         call mpgetgp('gr1',gr1,nhor,nlev)
-      endif
-      if (mypid == NROOT) call varseek('gr2',ktmp)
-      call mpbci(ktmp)
-      if (ktmp > 0) then 
-         allocate(gr2(nhor,nlev))
-         call mpgetgp('gr2',gr2,nhor,nlev)
-      endif
-      if (mypid == NROOT) call varseek('gtdamp',ktmp)
-      call mpbci(ktmp)
-      if (ktmp > 0) then 
-         allocate(gtdamp(nhor,nlev))
-         call mpgetgp('gtdamp',gtdamp,nhor,nlev)
-      endif
-      if (mypid == NROOT) call varseek('gr1c',ktmp)
-      call mpbci(ktmp)
-      if (ktmp > 0) then 
-         allocate(gr1c(nhor,nlev))
-         call mpgetgp('gr1c',gr1c,nhor,nlev)
-      endif
-      if (mypid == NROOT) call varseek('gr2c',ktmp)
-      call mpbci(ktmp)
-      if (ktmp > 0) then 
-         allocate(gr2c(nhor,nlev))
-         call mpgetgp('gr2c',gr2c,nhor,nlev)
-      endif
-      if (mypid == NROOT) call varseek('gtdampc',ktmp)
-      call mpbci(ktmp)
-      if (ktmp > 0) then 
-         allocate(gtdampc(nhor,nlev))
-         call mpgetgp('gtdampc',gtdampc,nhor,nlev)
+         call get_restart_array('gr1',gr1,nhor,nhor,nlev)         !mpgetgp('gr1',gr1,nhor,nlev)
       endif
 
-      return
+      call varseek('gr2',ktmp)
+      !call mpbci(ktmp)
+      if (ktmp > 0) then 
+         allocate(gr2(nhor,nlev))
+         call get_restart_array('gr2',gr2,nhor,nhor,nlev)         !mpgetgp('gr2',gr2,nhor,nlev)
+      endif
+
+      call varseek('gtdamp',ktmp)
+      !call mpbci(ktmp)
+      if (ktmp > 0) then 
+         allocate(gtdamp(nhor,nlev))
+         call get_restart_array('gtdamp',gtdamp,nhor,nhor,nlev)   !mpgetgp('gtdamp',gtdamp,nhor,nlev)
+      endif
+
+      call varseek('gr1c',ktmp)
+      !call mpbci(ktmp)
+      if (ktmp > 0) then 
+         allocate(gr1c(nhor,nlev))
+         call get_restart_array('gr1c',gr1c,nhor,nhor,nlev)       !mpgetgp('gr1c',gr1c,nhor,nlev)
+      endif
+
+      call varseek('gr2c',ktmp)
+      !call mpbci(ktmp)
+      if (ktmp > 0) then 
+         allocate(gr2c(nhor,nlev))
+         call get_restart_array('gr2c',gr2c,nhor,nhor,nlev)       !mpgetgp('gr2c',gr2c,nhor,nlev)
+      endif
+
+      call varseek('gtdampc',ktmp)
+      !call mpbci(ktmp)
+      if (ktmp > 0) then 
+         allocate(gtdampc(nhor,nlev))
+         call get_restart_array('gtdampc',gtdampc,nhor,nhor,nlev) !mpgetgp('gtdampc',gtdampc,nhor,nlev)
+      endif
+
       end subroutine read_atmos_restart
+
 
 !     =================
 !     SUBROUTINE INITFD
@@ -1197,6 +1086,11 @@ end subroutine master
 
       subroutine initfd
       use pumamod
+      implicit none
+
+      ! local
+      integer  :: iread1, iread2, iread3, iread4
+      integer  :: iread121, iread122, iread123, iread124, iread125, iread126
 
       if (nkits < 1) nkits = 1
 
@@ -1207,12 +1101,12 @@ end subroutine master
       call read_surf(121,sr1,NLEV,iread3)
       call read_surf(122,sr2,NLEV,iread4)
       call read_vargp(123,NLEV,iread123)
-      if (mypid == NROOT .and. iread123 == 0) then
+      !if (mypid == NROOT .and. iread123 == 0) then
          if (nhelsua > 1) then
             write(nud,*) "*** ERROR no *_surf_0123.sra file for Held&Suarez"
             stop
          endif
-      endif
+      !endif
    
       if (ndiagp > 0) then  
          call read_vargp(121,NLEV,iread121)
@@ -1220,27 +1114,27 @@ end subroutine master
          if (.not. allocated(gtdamp)) then
             call read_vargp(123,NLEV,iread123)
          endif
-         if (mypid == NROOT) then
+         !if (mypid == NROOT) then
             if (iread121==0 .or. iread122==0 .or. iread123==0) then
                write(nud,*) "*** ERROR not all fields (121,122,123) for grid point heating found"
                stop
             endif
-         endif
+         !endif
       endif
 
       if (nconv > 0) then
          call read_vargp(124,NLEV,iread124)
          call read_vargp(125,NLEV,iread125)
          call read_vargp(126,NLEV,iread126)
-         if (mypid == NROOT) then
+         !if (mypid == NROOT) then
             if (iread124==0 .or. iread125==0 .or. iread126==0) then
                write(nud,*) "*** ERROR not all fields (124,125,126) for convective heating found"
                stop
             endif
-         endif
+         !endif
       endif
 
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          if (iread1==0 .or. iread2==0 .or. iread3==0 .or. iread4==0) then
             call setzt ! setup for aqua-planet
          else
@@ -1252,83 +1146,29 @@ end subroutine master
             sr1(1,:) = sr1(1,:) - t0(:) * sqrt(2.0) ! subtract profile
             write(nud,'(a,f8.2,a)') ' Mean of Ps = ',0.01*psmean, '[hPa]'
          endif
-      endif
+      !endif
 
 !     Add initial noise if wanted
 
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          call printprofile
          if (kick > 10) then
             call noise(kick-10)
          else
             call noise(kick)
          endif
-      endif ! (mypid == NROOT)
+      !endif ! (mypid == NROOT)
 
-      call mpscsp(sp,spm,1)
-      if (mypid == NROOT) then
+      !call mpscsp(sp,spm,1)     ! replace mpscsp with
+      spm = sp
+
+      !if (mypid == NROOT) then
           st(1,:) = sr1(1,:)
          stm(1,:) = sr1(1,:)
           sz(3,:) = plavor
          szm(3,:) = plavor
-      endif
-      return
-      end
-
-
-!     ==========================
-!     SUBROUTINE READ_RESOLUTION
-!     ==========================
-
-      subroutine read_resolution
-      use pumamod
-
-      character (80) :: ylat
-      character (80) :: ylev
-
-      if (mypid == NROOT) then
-         call get_command_argument(1,ylat)
-         call get_command_argument(2,ylev)
-         read(ylat,*) nlat
-         read(ylev,*) nlev
-      endif
-
-      call mpbci(nlat)
-      call mpbci(nlev)
-      return
-      end
-
-
-!     =====================
-!     SUBROUTINE RESOLUTION
-!     =====================
-
-      subroutine resolution
-      use pumamod
-
-      nlem = nlev - 1
-      nlep = nlev + 1
-      nlsq = nlev * nlev
-
-      nlon = nlat + nlat ! Longitudes
-      nlah = nlat / 2
-      nlpp = nlat / npro
-      nhpp = nlah / npro
-      nhor = nlon * nlpp
-      nugp = nlon * nlat
-      npgp = nugp / 2
-
-      ntru = (nlon - 1) / 3
-      ntp1 = ntru + 1
-      nzom = ntp1 + ntp1
-      nrsp = (ntru + 1) * (ntru + 2)
-      ncsp = nrsp / 2
-      nspp = (nrsp + npro - 1) / npro
-      nesp = nspp * npro
-      nesp = nesp + 3 - mod(nesp-1,4)
-
-      return
-      end
+      !endif
+      end subroutine initfd
 
 
 !     =================
@@ -1337,6 +1177,7 @@ end subroutine master
 
       subroutine readnl
       use pumamod
+      implicit none
 
 !     This workaround is necessaray, because allocatable arrays are
 !     not allowed in namelists for FORTRAN versions < F2003
@@ -1349,26 +1190,28 @@ end subroutine master
       real    :: sigmah(MAXLEV)      = 0.0    ! Half level sigma
       real    :: t0k(MAXLEV)         = 250.0  ! Reference temperature
 
-      namelist /puma_nl/ &
+      integer :: itru, icsp, ilev
+      integer :: ios
+
+      ! pkugcm_namelist was derived and extended from puma_namelist as below
+      namelist /pkugcm_nl/ &
         akap    , alpha   , alr     , alrs    , diffts  , disp    &
       , dtep    , dtns    , dtrop   , dttrp   , dtzz    , dvdiff  &
       , ga      , gascon  &
       , kick    , mpstep  , nafter  , ncoeff  , nconv   , ncu     &
       , ndel    , ndheat  , ndiag   , ndiagp  , ndl     , nenergy &
-      , nentropy, newsr   , nextout , ngui    , nguidbg , nhelsua &
-      , nkits   &
+      , nentropy, newsr   , nextout , nhelsua , nkits   &
       , nlevt   , nmonths , noutput , nradcv  , nruido  , nrun    &
-      , nselect , nspecsel, nsponge , nstep   , nstop   , nsync   &
+      , nselect , nspecsel, nsponge , nstep   , nstop   &
       , ntspd   , nvg     , nwpd    , nwspini , nyears  &
       , orofac  , pac     , plarad  , pspon   , psurf   &
       , rotspd  , seed    , sid_day , sigmah  , sigmax  , dcsponge&
-      , spstep  , syncsecs, syncstr , t0k     , tauf    , taur    &
-      , tac     , tauta   , tauts   , tgr     &
-      , ww_time
+      , spstep  , t0k     , tauf    , taur    &
+      , tac     , tauta   , tauts   , tgr     , ww_time
 
       open(13,file=puma_namelist,iostat=ios)
       if (ios == 0) then
-         read (13,puma_nl)
+         read (13,pkugcm_nl)
          close(13)
       endif
 
@@ -1391,10 +1234,10 @@ end subroutine master
       endif
       if (ndiag  < 1) ndiag  = ntspd * 10       ! every 10th. day
 
-      if (syncsecs > 0.0) syncstr = spstep / syncsecs
-      if (syncstr  > 1.0) syncstr = 1.0
+      !if (syncsecs > 0.0) syncstr = spstep / syncsecs
+      !if (syncstr  > 1.0) syncstr = 1.0
 
-      write(nud,puma_nl)
+      write(nud,pkugcm_nl)
 
       itru = ntru
       if (itru > MAXSELZW) itru = MAXSELZW
@@ -1409,126 +1252,23 @@ end subroutine master
       sigmh(1:ilev)  = sigmah(1:ilev)
       t0(1:ilev)     = t0k(1:ilev)
 
-      return
-      end
-
-
-      subroutine ppp_read_i(a,ndim,nread)
-      integer :: a(ndim)
-      integer :: n
-      
-      nread = 0
-      read (15,*) n
-      if (n < 1 .or. n > ndim) return
-      read (15,*) a(1:n)
-      nread = n
-      return
-      end
+      end subroutine readnl
 
       
-      subroutine ppp_read_r(a,ndim,nread)
-      real    :: a(ndim)
-      integer :: n
-
-      nread = 0
-      read (15,*) n
-      if (n < 1 .or. n > ndim) return
-      read (15,*) a(1:n)
-      nread = n
-      return
-      end
-
-      
-!     ========================
-!     SUBROUTINE PPP_INTERFACE
-!     ========================
-
-      subroutine ppp_interface
-      use pumamod
-      use prepmod
-      logical :: lexist
-      integer :: iostat
-      integer :: n
-      integer :: ivar
-      character (80) :: yname
-      character (80) :: yfo1 = '("* ",A," = ",G10.4," *")'
-
-      inquire(file=ppp_puma_txt,exist=lexist)
-      if (.not. lexist) return
-
-      call ppp_def_int('NLAT',nlat_ppp,1)
-      call ppp_def_int('NLEV',nlev_ppp,1)
-
-      call ppp_def_real('SIGMH',sigmh,nlev)
-
-      write(nud,*) "*******************************"
-      write(nud,*) "* Reading file <",trim(ppp_puma_txt),"> *"
-      write(nud,*) "*******************************"
-      open (15,file=ppp_puma_txt)
-      read (15,'(A)',iostat=iostat) yname
-      do while (trim(yname) /= '[END]' .and. iostat == 0)
-         do j = 1 , num_ppp
-            if (trim(yname) == ppp_tab(j)%name) then
-               if (ppp_tab(j)%isint) then
-                  call ppp_read_i(ppp_tab(j)%pint,ppp_tab(j)%n,iread)
-                  if (iread == 0) then
-                     write(nud,*) "*** ERROR reading ",trim(yname)," from ",trim(ppp_puma_txt)
-                     stop
-                  else if (iread == 1) then
-                     write(nud,'("* ",A," = ",I10," *")') yname(1:15),ppp_tab(j)%pint
-                  else
-                     write(nud,'("* ",A," :",I5," items *")') yname(1:15),iread
-                  endif
-               else
-                  call ppp_read_r(ppp_tab(j)%preal,ppp_tab(j)%n,iread)
-                  if (iread == 0) then
-                     write(nud,*) "*** ERROR reading ",trim(yname)," from ",trim(ppp_puma_txt)
-                     stop
-                  else if (iread == 1) then
-                     write(nud,yfo1) yname(1:15),ppp_tab(j)%preal
-                  else
-                     write(nud,'("* ",A," :",I5," items *")') yname(1:15),iread
-                  endif
-               endif
-               exit
-            endif
-         enddo
-         read (15,'(A)',iostat=iostat) yname
-      enddo
-      if (nlat_ppp(1) /= 0 .and. nlat_ppp(1) /= nlat) then
-         write(nud,*) "*** ERROR *** ERROR *** ERROR *** ERROR ***"
-         write(nud,*) "# of latitudes mismatch in preprocessor PPP and PUMA"
-         write(nud,*) "NLAT in PPP  : ",nlat_ppp," <",trim(ppp_puma_txt),">"
-         write(nud,*) "NLAT in PUMA : ",nlat
-         write(nud,*) "Aborting ..."
-         stop
-      endif
-      if (nlev_ppp(1) /= 0 .and. nlev_ppp(1) /= nlev) then
-         write(nud,*) "*** ERROR *** ERROR *** ERROR *** ERROR ***"
-         write(nud,*) "# of levels mismatch in preprocessor PPP and PUMA"
-         write(nud,*) "NLEV in PPP  : ",nlev_ppp," <",trim(ppp_puma_txt),">"
-         write(nud,*) "NLEV in PUMA : ",nlev
-         write(nud,*) "Aborting ..."
-         stop
-      endif
-      write(nud,*) "*******************************"
-
-      return
-      end subroutine ppp_interface
-
-
 !     =============================
 !     SUBROUTINE SELECT_ZONAL_WAVES
 !     =============================
 
       subroutine select_zonal_waves
       use pumamod
+      implicit none
 
       if (sum(nselzw(:)) /= NTP1) then ! some wavenumbers disabled
          lselect = .true.
       endif
       return
-      end
+      end subroutine select_zonal_waves
+
 
 !     ================================
 !     SUBROUTINE SELECT_SPECTRAL_MODES
@@ -1536,24 +1276,33 @@ end subroutine master
 
       subroutine select_spectral_modes
       use pumamod
+      implicit none
 
       if (sum(nselsp(:)) /= NCSP) then ! some modes disabled
          lspecsel = .true.
       endif
       return
-      end
+      end subroutine select_spectral_modes
+
 
 !     =====================
 !     * SET VERTICAL GRID *
 !     =====================
 
       subroutine set_vertical_grid
-
       use pumamod
+      implicit none
+
+      ! local
+      real :: zsigtran, zsigmin
+      integer :: inl
+      integer :: jlev
 
       if (sigmh(NLEV) /= 0.0) return ! Already read in from namelist puma
 
-      if (nvg == 1) then              ! Scinocca & Haynes sigma levels
+      ! nvg==1: Scinocca & Haynes sigma levels
+      !
+      if (nvg == 1) then
 
          if (nlevt >= NLEV) then      ! Security check for 'nlevt'
             write(nud,*) '*** ERROR *** nlevt >= NLEV'
@@ -1595,24 +1344,25 @@ end subroutine master
                sigmh(jlev) = 1.
             endif
          enddo
-         return  ! case nvg == 1 finished
-      else if (nvg == 2) then   ! Polvani & Kushner sigma levels
+      end if
+     
+      ! nvg==2: Polvani & Kushner sigma levels
+      !
+      if (nvg == 2) then
          inl = int(real(NLEV)/(1.0 - sigmax**(1.0/5.0)))
          do jlev=1,NLEV
             sigmh(jlev) = (real(jlev + inl - NLEV) / real(inl))**5
          enddo
-         return
+      end if
 
-!     Default (nvg == 0) : equidistant sigma levels
-
-      else
+      ! Default (nvg == 0) : equidistant sigma levels
+      !
+      if (nvg==0) then
          do jlev = 1 , NLEV
             sigmh(jlev) = real(jlev) / real(NLEV)
          enddo
-      endif
-
-      return
-      end
+      end if
+      end subroutine set_vertical_grid
 
 
 !     =================
@@ -1621,12 +1371,18 @@ end subroutine master
 
       subroutine initpm
       use pumamod
+      implicit none
 
       real (kind=8) :: radea,zakk,zzakk
-      real :: zsigb          ! sigma_b for Held & Suarez frictional
-!                              and heating timescales
+      real :: zsigb           ! sigma_b for Held & Suarez frictional
+!                               and heating timescales
+      ! local
+      real     :: zrsq2       ! 临时变量=1/sqrt(2), 后续会不断变号
+      real     :: zsq         ! 临时变量 只保存某整数jn的近似平方=jn*(jn+1)
+      integer  :: jdelh, jlev
+      integer  :: ji,jm,jn,jr,jw
 
-      radea  = plarad            ! planet radius in high precision
+      radea  = plarad         ! planet radius in high precision
       plavor = EZ * rotspd * omega * ww_time ! planetary vorticity
 
 !     *************************************************************
@@ -1777,7 +1533,7 @@ end subroutine master
  8100 format('* e-folding time for smallest scale is ',f7.0,' sec  *')
  8110 format('* Robert time filter with parameter PNU =',f8.3,'   *')
  8120 format(/)
-      end
+      end subroutine initpm
 
 
 !     =================
@@ -1786,6 +1542,11 @@ end subroutine master
 
       subroutine makebm
       use pumamod
+      implicit none
+
+      ! local
+      real :: zdeltsq, zaq
+      integer :: jn, jlev, jlev1, jlev2
 
       zdeltsq = delt * delt
 
@@ -1804,7 +1565,8 @@ end subroutine master
          call minvers(bm1(1,1,jn),NLEV)
       enddo
       return
-      end
+      end subroutine makebm
+
 
 !     =================
 !     SUBROUTINE INITSI
@@ -1812,14 +1574,17 @@ end subroutine master
 
       subroutine initsi
       use pumamod
+      implicit none
 
 !     **********************************************
 !     * Initialisation of the Semi Implicit scheme *
 !     **********************************************
 
-      dimension zalp(NLEV),zh(NLEV)
-      dimension ztautk(NLEV,NLEV)
-      dimension ztaudt(NLEV,NLEV)
+      ! local
+      real, dimension(NLEV)      :: zalp,   zh
+      real, dimension(NLEV,NLEV) :: ztautk, ztaudt
+      real :: zfctr
+      integer :: i,j,ilev,jlev
 
       tkp(:) = akap * t0(:)
       t0d(1:NLEM) = t0(2:NLEV) - t0(1:NLEM)
@@ -1918,7 +1683,8 @@ end subroutine master
  9012 format(69('*'))
  9013 format('* Lv * ',a5,i7,4i12,' *')
  9014 format('*',i3,' * ',5f12.8,' *')
-      end
+      end subroutine initsi
+
 
 !     =====================
 !     SUBROUTINE INITRANDOM
@@ -1926,6 +1692,8 @@ end subroutine master
 
       subroutine initrandom
       use pumamod
+      implicit none
+
       integer :: i, clock
 
 !     Set random number generator seed
@@ -1946,7 +1714,8 @@ end subroutine master
       endif
       call random_seed(put=meed)
       return
-      end
+      end subroutine initrandom
+
 
 !     ====================
 !     SUBROUTINE PRINTSEED
@@ -1954,6 +1723,8 @@ end subroutine master
 
       subroutine printseed
       use pumamod
+      implicit none
+
       integer :: i
 
       write (nud,9020)
@@ -1967,7 +1738,8 @@ end subroutine master
  9000 format('* seed(',i1,') = ',i10,' *')
  9010 format('************************')
  9020 format(/)
-      end
+      end subroutine printseed
+
 
 !     ====================
 !     SUBROUTINE INITRUIDO
@@ -1975,6 +1747,7 @@ end subroutine master
 
       subroutine initruido
       use pumamod
+      implicit none
       if (nruido > 0) then
          allocate(ruido(nlon,nlat,nlev))
          allocate(ruidop(nhor,nlev))
@@ -1982,7 +1755,8 @@ end subroutine master
          ruidop = 88
       endif
       return
-      end
+      end subroutine initruido
+
 
 !     ====================
 !     SUBROUTINE STEPRUIDO
@@ -1990,13 +1764,18 @@ end subroutine master
 
       subroutine stepruido
       use pumamod
-      real :: zr
+      implicit none
 
-      if (mypid == NROOT) then
-         if (nruido == 1) then
+      ! local
+      real :: zr
+      real :: gasdev
+      integer :: jlon,jlat,jlev
+
+      !if (mypid == NROOT) then
+         if (nruido == 1) then         ! ruido = 全场均一随机数
             zr = disp*gasdev()
             ruido(:,:,:) = zr
-         elseif (nruido == 2) then
+         elseif (nruido == 2) then     ! ruido = 全场不均一随机数
             do jlev=1,NLEV
                do jlat=1,NLAT
                   do jlon=1,NLON
@@ -2004,7 +1783,7 @@ end subroutine master
                   enddo
                enddo
             enddo
-         elseif (nruido == 3) then
+         elseif (nruido == 3) then     ! ruido = 全场南北半球对称的不均一随机数
             do jlev=1,NLEV
                do jlat=1,NLAT,2
                   do jlon=1,NLON
@@ -2014,18 +1793,27 @@ end subroutine master
                enddo
             enddo
          endif
-      endif ! (mypid == NROOT)
+      !endif ! (mypid == NROOT)
 
-      call mpscgp(ruido,ruidop,NLEV)
+      !call mpscgp(ruido,ruidop,NLEV)
+      ruidop = reshape(ruido,(/nhor,nlev/))
       return
-      end
+      end subroutine stepruido
+
 
 !     ==================
 !     SUBROUTINE MINVERS
 !     ==================
 
       subroutine minvers(a,n)
-      dimension a(n,n),b(n,n),indx(n)
+      implicit none
+      integer, intent(in) :: n
+      real, dimension(n,n), intent(inout) :: a
+
+      ! local
+      real, dimension(n,n) :: b
+      integer, dimension(n)   :: indx
+      integer :: j
 
       b = 0.0
       do j = 1 , n
@@ -2037,7 +1825,8 @@ end subroutine master
       enddo
       a = b
       return
-      end
+      end subroutine minvers
+
 
 !     =================
 !     SUBROUTINE LUBKSB
@@ -2068,7 +1857,8 @@ end subroutine master
          b(i) = sum / a(i,i)
       enddo
       return
-      end
+      end subroutine lubksb
+
 
 !     =================
 !     SUBROUTINE LUDCMP
@@ -2108,7 +1898,8 @@ end subroutine master
          if (j < n) a(j+1:n,j) = a(j+1:n,j) / a(j,j)
    19 continue
       return
-      end
+      end subroutine ludcmp
+
 
 !     =============================
 !     SUBROUTINE FILTER_ZONAL_WAVES
@@ -2116,7 +1907,10 @@ end subroutine master
 
       subroutine filter_zonal_waves(pfc)
       use pumamod
-      dimension pfc(2,NLON/2,NLPP)
+      implicit none
+
+      real, dimension(2,NLON/2,NLPP) :: pfc
+      integer :: jlat
 
       do jlat = 1 , NLPP
          pfc(1,1:NTP1,jlat) = pfc(1,1:NTP1,jlat) * nselzw(:)
@@ -2124,7 +1918,7 @@ end subroutine master
       enddo
 
       return
-      end
+      end subroutine filter_zonal_waves
       
 
 !     ================================
@@ -2133,6 +1927,9 @@ end subroutine master
 
       subroutine filter_spectral_modes
       use pumamod
+      implicit none
+
+      integer :: j,k,m,n
 
       j =  0
       k = -1
@@ -2162,7 +1959,7 @@ end subroutine master
       enddo
 
       return
-      end
+      end subroutine filter_spectral_modes
       
 
 !     ================
@@ -2171,6 +1968,7 @@ end subroutine master
 
       subroutine noise(kickval)
       use pumamod
+      implicit none
 
 !     kickval = -1 : read ln(ps) from puma_sp_init
 !     kickval =  0 : model runs zonally symmetric with no eddies
@@ -2183,6 +1981,7 @@ end subroutine master
       integer :: jsp, jsp1, jn, jm
       integer :: jr, ji, ins
       real    :: zr, zi, zscale, zrand
+      integer :: iostat
 
       zscale = 0.000001         ! amplitude of noise
       zr     = 0.001            ! kickval=3 value for mode(1,2) real
@@ -2208,7 +2007,7 @@ end subroutine master
          jsp1=2*NTP1+1
          do jsp=jsp1,NRSP
             call random_number(zrand)
-            if (mrpid > 0) zrand = zrand + mrpid * 0.01
+            !if (mrpid > 0) zrand = zrand + mrpid * 0.01
             sp(jsp)=sp(jsp)+zscale*(zrand-0.5)
          enddo
          write(nud,*) 'white noise added'
@@ -2220,7 +2019,7 @@ end subroutine master
                ji=jr+1
                if (mod(jn+jm,2) == 0) then
                   call random_number(zrand)
-                  if (mrpid > 0) zrand = zrand + mrpid * 0.01
+                  !if (mrpid > 0) zrand = zrand + mrpid * 0.01
                   sp(jr)=sp(jr)+zscale*(zrand-0.5)
                   sp(ji)=sp(ji)+zscale*(zrand-0.5)
                endif
@@ -2258,13 +2057,15 @@ end subroutine master
       endif
 
       return
-      end
+      end subroutine noise
+
 
 !     ================
 !     SUBROUTINE SETZT
 !     ================
       subroutine setzt
       use pumamod
+      implicit none
 
 !     *************************************************************
 !     * Set up the restoration temperature fields sr1 and sr2     *
@@ -2275,8 +2076,12 @@ end subroutine master
 !     * The smoothing ot the tropopause depends on <dttrp>.       *
 !     ************************************************************* 
 
-      dimension ztrs(NLEV)  ! Mean profile
-      dimension zfac(NLEV)
+      real, dimension(NLEV) :: ztrs   ! Mean profile
+      real, dimension(NLEV) :: zfac
+      real :: zsqrt2, zsqrt6, zsqrt04
+      real :: zsigprev
+      real :: ztp, ztpm, ztpp, ztprev, ztps, zttrop, zzp, zzpp, zzprev
+      integer :: jlev
 
       sr1(:,:) = 0.0 ! NESP,NLEV
       sr2(:,:) = 0.0 ! NESP,NLEV
@@ -2334,7 +2139,8 @@ end subroutine master
       write(nud,*) '* Restoration Temperature set up for aqua planet *'
       write(nud,*) '**************************************************'
       return
-      end
+      end subroutine setzt
+
 
 !     =======================
 !     SUBROUTINE PRINTPROFILE
@@ -2342,6 +2148,10 @@ end subroutine master
 
       subroutine printprofile
       use pumamod
+      implicit none
+
+      integer :: jlev
+      real :: zt
 
 !     **********************************
 !     * write out vertical information *
@@ -2369,7 +2179,7 @@ end subroutine master
  9003 format('* Lv *    Sigma Restor-T tauR [s]  tauF [s]  *')
  9004 format('*',i3,' * ',f8.3,f9.3,2e10.3,' *')
  9005 format('*',i3,' * ',f8.3,f9.3,e10.3,'         - *')
-      end
+      end subroutine printprofile
 
 
 !     ====================
@@ -2396,7 +2206,7 @@ end subroutine master
          endif
          inquire(file=yfilename,exist=lexist)
       endif
-      call mpbcl(lexist)
+      !call mpbcl(lexist)
       if (.not. lexist) return
 
       if (mypid == NROOT) then
@@ -2414,16 +2224,18 @@ end subroutine master
          endif
          call reg2alt(zgp,klev)
       endif ! (mypid == NROOT)
-      call mpscgp(zgp,zpp,klev)
+
+      !call mpscgp(zgp,zpp,klev)
+      zpp = zgp
+
       call gp2fc(zpp,NLON,NLPP*klev)
       do jlev = 1 , klev
          call fc2sp(zpp(1,jlev),psp(1,jlev))
       enddo
-      call mpsum(psp,klev)
+      !call mpsum(psp,klev)
       kread = 1
       return
       end subroutine read_surf
-
 
 
 !     =====================
@@ -2447,7 +2259,7 @@ end subroutine master
          endif
          inquire(file=yfilename,exist=lexist)
       endif
-      call mpbcl(lexist)
+      !call mpbcl(lexist)
       if (.not. lexist) then
          if (mypid == NROOT) then
             write(nud,*) 'File <',trim(yfilename),'> not found'
@@ -2479,7 +2291,9 @@ end subroutine master
             if (mypid == NROOT) then
                write(nud,*) 'Field gr1 allocated'
             endif
-            call mpscgp(zgp,gr1,klev)
+            !call mpscgp(zgp,gr1,klev)
+            gr1 = zgp
+
          case(122)
             !--- non-dimensionalize variable. radiative rest. temp.
             if (mypid == NROOT) then
@@ -2489,7 +2303,9 @@ end subroutine master
             if (mypid == NROOT) then
                write(nud,*) 'Field gr2 allocated'
             endif
-            call mpscgp(zgp,gr2,klev)
+            !call mpscgp(zgp,gr2,klev)
+            gr2 = zgp
+
          case(123)
             !--- non-dimensionalize radiative relaxation time scale
             if (mypid == NROOT) then
@@ -2499,7 +2315,9 @@ end subroutine master
             if (mypid == NROOT) then
                write(nud,*) 'Field gtdamp allocated'
             endif
-            call mpscgp(zgp,gtdamp,klev)
+            !call mpscgp(zgp,gtdamp,klev)
+            gtdamp = zgp
+
          case(124)
             !--- non-dimensionalize and shift const. convective rest. temp.
             if (mypid == NROOT) then
@@ -2512,7 +2330,9 @@ end subroutine master
             if (mypid == NROOT) then
                write(nud,*) 'Field gr1c allocated'
             endif
-            call mpscgp(zgp,gr1c,klev)
+            !call mpscgp(zgp,gr1c,klev)
+            gr1c = zgp
+
          case(125)
             !--- non-dimensionalize variable. convective rest. temp.
             if (mypid == NROOT) then
@@ -2522,7 +2342,9 @@ end subroutine master
             if (mypid == NROOT) then
                write(nud,*) 'Field gr2c allocated'
             endif
-            call mpscgp(zgp,gr2c,klev)
+            !call mpscgp(zgp,gr2c,klev)
+            gr2c = zgp
+
          case(126)
             !--- non-dimensionalize convective relaxation time scale
             if (mypid == NROOT) then
@@ -2532,11 +2354,14 @@ end subroutine master
             if (mypid == NROOT) then
                write(nud,*) 'Field gtdampc allocated'
             endif
-            call mpscgp(zgp,gtdampc,klev)
+            !call mpscgp(zgp,gtdampc,klev)
+            gtdampc = zgp
+
       end select
       kread = 1
       return
       end subroutine read_vargp
+
 
 !     ===============
 !     SUBROUTINE DIAG
@@ -2550,7 +2375,8 @@ end subroutine master
       endif
       call energy
       return
-      end
+      end subroutine diag
+
 
 !     ================
 !     SUBROUTINE PRISP
@@ -2582,7 +2408,8 @@ end subroutine master
       call wrspam(sp,0,title,scale)
 
       return
-      end
+      end subroutine prisp
+
 
 !     ====================
 !     SUBROUTINE POWERSPEC
@@ -2605,7 +2432,8 @@ end subroutine master
          enddo
       enddo
       return
-      end
+      end subroutine powerspec
+
 
 !     =====================
 !     SUBROUTINE POWERPRINT
@@ -2622,9 +2450,7 @@ end subroutine master
       write(nud,1000) text,(int(pspec(j)*zsca),j=2,13)
       return
  1000 format('* Power(',a3,') ',i8,11i5,' *')
-      end
-
-
+      end subroutine powerprint
 
 
 !     ==============
@@ -2643,7 +2469,8 @@ end subroutine master
       enddo
       rmssp = zsum
       return
-      end
+      end function rmssp
+
 
 !     =================
 !     SUBROUTINE ENERGY
@@ -2727,7 +2554,8 @@ end subroutine master
 !9010 format('* Power(',a,') ',7e9.2,' *')
  9011 format('* Wavenumber ',i8,11i5,' *')
  9012 format('',78('*'))
-      end
+      end subroutine energy
+
 
 !     =================
 !     SUBROUTINE NTOMIN
@@ -2735,6 +2563,10 @@ end subroutine master
 
       subroutine ntomin(kstep,imin,ihou,iday,imon,iyea)
       use pumamod
+      implicit none
+      integer, intent(inout) :: kstep, imin, ihou, iday, imon, iyea
+      integer :: istep
+
       istep = kstep                          ! day [0-29] month [0-11]
       if (istep .lt. 0) istep = 0            ! min [0-59] hour  [0-23]
       imin = mod(istep,ntspd) * 1440 / ntspd ! minutes of current day
@@ -2749,7 +2581,8 @@ end subroutine master
       imon = imon + 1
       iyea = iyea + 1
       return
-      end
+      end subroutine ntomin
+
 
 !     =================
 !     SUBROUTINE NTODAT
@@ -2763,7 +2596,7 @@ end subroutine master
       call ntomin(istep,imin,ihou,iday,imon,iyea)
       write(datch,20030) iday,mona(imon),iyea,ihou,imin
 20030 format(i2,'-',a3,'-',i4.4,2x,i2,':',i2.2)
-      end
+      end subroutine ntodat
 
 
 !     =================
@@ -2804,7 +2637,8 @@ end subroutine master
       function cab(i)
          cab = scale * sqrt(ps(i+i-1)*ps(i+i-1)+ps(i+i)*ps(i+i))
       end function cab
-      end
+      end subroutine wrspam
+
 
 !     ===============
 !     SUBROUTINE WRZS
@@ -2841,7 +2675,8 @@ end subroutine master
 20020 format('* Lv * ',16(1x,a3),' * Lv *')
 20030 format('*    * ',a18,2x,a30,20x,'*')
 20100 format('* ',i2,' * ',16i4,' * ',i2,' *')
-      end
+      end subroutine wrzs
+
 
 !     ================
 !     SUBROUTINE XSECT
@@ -2860,7 +2695,8 @@ end subroutine master
       title = 'Temperature [C]'
       call wrzs(cst,title,scale)
       return
-      end
+      end subroutine xsect
+
 
 !     ==================
 !     SUBROUTINE WRITESP
@@ -2871,8 +2707,6 @@ end subroutine master
       real    :: pf(NRSP)
       real    :: zf(NRSP)
       integer :: ihead(8)
-      real, dimension(NRSP)      :: zf2
-      real, dimension(NLON*NLAT) :: zfg
 
       call ntomin(nstep,nmin,nhour,nday,nmonth,nyear)
 
@@ -2892,7 +2726,8 @@ end subroutine master
       write(kunit) ihead
       write(kunit) zf
 
-      end
+      return
+      end subroutine writesp
 
 
 !     ================
@@ -2921,13 +2756,11 @@ end subroutine master
 
 !     ************
 !     * pressure *
-!     ************
 
       call writesp(40,sp,152,0,1.0,log(psmean))
 
 !     ***************
 !     * temperature *
-!     ***************
 
       do jlev = 1 , NLEV
          call writesp(40,st(1,jlev),130,jlev,ct,t0(jlev)*ct)
@@ -2935,7 +2768,6 @@ end subroutine master
 
 !     ********************
 !     * res. temperature *
-!     ********************
 
       zampl = cos((real(nstep)-pac)*tac)
       do jlev = 1 , NLEV
@@ -2945,7 +2777,6 @@ end subroutine master
 
 !     **************
 !     * divergence *
-!     **************
 
       do jlev = 1 , NLEV
          call writesp(40,sd(1,jlev),155,jlev,ww_scale,0.0)
@@ -2953,7 +2784,6 @@ end subroutine master
 
 !     *************
 !     * vorticity *
-!     *************
 
       do jlev = 1 , NLEV
          zsave = sz(3,jlev)
@@ -2963,7 +2793,7 @@ end subroutine master
       enddo
 
       return
-      end
+      end subroutine outsp
 
 
 !     ==================
@@ -2976,7 +2806,8 @@ end subroutine master
       real :: zf(NUGP)
       integer :: ihead(8)
 
-      call mpgagp(zf,pf,1)
+      !call mpgagp(zf,pf,1)
+      zf = pf
 
       if (mypid == NROOT) then 
          call alt2reg(zf,1)
@@ -2996,7 +2827,7 @@ end subroutine master
       endif
 
       return
-      end  
+      end subroutine writegp
 
 
 !     ================
@@ -3006,6 +2837,7 @@ end subroutine master
       subroutine outgp
       use pumamod
       real zhelp(NHOR)
+      real, dimension(NUGP) :: x2d
 !     
 !     energy diagnostics
 !   
@@ -3024,7 +2856,7 @@ end subroutine master
        enddo
       endif
 
-      end
+      end subroutine outgp
 
 
 !     ====================
@@ -3033,6 +2865,7 @@ end subroutine master
 
       subroutine checkunit
       use pumamod
+      implicit none
 
       write(ncu,1000) nstep,'sp(  1  )',sp(1),sp(1)*spnorm(1)+log(psmean)
       write(ncu,1000) nstep,'st(  1,1)',st(1,1),st(1,1)*spnorm(1)*ct+t0(1)*ct
@@ -3052,7 +2885,7 @@ end subroutine master
 
       return
  1000 format(i5,1x,a,1x,2f14.7)
-      end
+      end subroutine checkunit
 
 
 !     =====================
@@ -3061,15 +2894,20 @@ end subroutine master
 
       subroutine legpri
       use pumamod
+      implicit none
+
+      ! local
+      integer :: jlat
+      real :: zalat
 
       write(nud,231)
       write(nud,232)
       write(nud,233)
       write(nud,232)
-      do 14 jlat = 1 , NLAT
+      do jlat = 1 , NLAT
          zalat = asin(sid(jlat))*180.0/PI
          write(nud,234) jlat,zalat,csq(jlat),gwd(jlat)
-   14 continue
+      end do 
       write(nud,232)
       write(nud,231)
       return
@@ -3077,7 +2915,7 @@ end subroutine master
   232 format(37('*'))
   233 format('*  No *   Lat *       csq    weight *')
   234 format('*',i4,' *',f6.1,' *',2f10.4,' *')
-      end
+      end subroutine legpri
 
 
 !     =================
@@ -3086,7 +2924,10 @@ end subroutine master
 
       subroutine inilat
       use pumamod
+      implicit none
+
       real (kind=8) :: zcsq
+      integer :: jlat, ideg
 
       do jlat = 1 , NLAT
          zcsq       = 1.0 - sid(jlat) * sid(jlat)
@@ -3099,15 +2940,25 @@ end subroutine master
          write(chlat(NLAT+1-jlat),'(i2,a1)') ideg,'S'
       enddo
       return
-      end
+      end subroutine inilat
 
 
 !     ====================
 !     SUBROUTINE GRIDPOINT
+!     Key callings:
+!     - calcgp              : 超级密集计算
+!     - mktend (mod_legsym) : Compute Nonlinear terms
+!     Others:
+!     - filter_zonal_waves  : 纬向滤波
+!     - stepruido           : 运行中增加随机性
+!       gasdev                stepruido调用了这个Gauss随机数发生器
+!     - altcs               : 诊断cs切片时转换alt grid
+!     MPI: mpsumsc; mpgagp; mpsum; mpgacs
 !     ====================
 
       subroutine gridpoint
       use pumamod
+      implicit none
 
       real, dimension(NLON,NLPP,NLEV) :: gtn
       real, dimension(NHOR)           :: gvpp
@@ -3121,27 +2972,30 @@ end subroutine master
       real, dimension(NLAT,NLEV)      :: zcs  !XW(2017-4-7): remove "(kind=4)" for zcs and zsp
       real, dimension(NRSP)           :: zsp
 
+      real :: sec
+      integer :: jlon, jlat, jlev
+
       !$OMP parallel
 
       !$OMP sections
       !$OMP section
       do jlev = 1 , NLEV
-         call sp2fc(sd(1,jlev),gd(1,jlev))
+         call sp2fc(sd(:,jlev),gd(:,jlev))
       end do
       !$OMP section
       do jlev = 1 , NLEV
-         call sp2fc(st(1,jlev),gt(1,jlev))
+         call sp2fc(st(:,jlev),gt(:,jlev))
       end do
       !$OMP section
       do jlev = 1 , NLEV
-         call sp2fc(sz(1,jlev),gz(1,jlev))
+         call sp2fc(sz(:,jlev),gz(:,jlev))
       enddo
 
       !$OMP section
-      call sp2fc(sp,gp)                                          ! LnPs
-      call sp2fcdmu(sp,gpj)                                      ! d(lnps) / d(mu)
+      call sp2fc(sp,gp)                                          ! lnPs
+      call sp2fcdmu(sp,gpj)                                      ! d(lnPs) / d(mu)
       do jlev = 1 , NLEV
-         call dv2uv(sd(1,jlev),sz(1,jlev),gu(1,jlev),gv(1,jlev)) ! div,vor->ucos(phi),vcos(phi)
+         call dv2uv(sd(:,jlev),sz(:,jlev),gu(:,jlev),gv(:,jlev)) ! div,vor->ucos(phi),vcos(phi)
       enddo
       !$OMP end sections
 
@@ -3150,15 +3004,15 @@ end subroutine master
          call filter_zonal_waves(gp)
          call filter_zonal_waves(gpj)
          do jlev = 1 , NLEV
-            call filter_zonal_waves(gu(1,jlev))
-            call filter_zonal_waves(gv(1,jlev))
-            call filter_zonal_waves(gd(1,jlev))
-            call filter_zonal_waves(gt(1,jlev))
-            call filter_zonal_waves(gz(1,jlev))
+            call filter_zonal_waves(gu(:,jlev))
+            call filter_zonal_waves(gv(:,jlev))
+            call filter_zonal_waves(gd(:,jlev))
+            call filter_zonal_waves(gt(:,jlev))
+            call filter_zonal_waves(gz(:,jlev))
          enddo
       endif
 
-      if (ngui > 0 .or. mod(nstep,ndiag) == 0) then
+      if (mod(nstep,ndiag) == 0) then
         do jlev = 1 , NLEV
           do jlat = 1 , NLPP
             sec = cv / sqrt(csq(jlat))
@@ -3227,34 +3081,35 @@ end subroutine master
       if (lselect) then
          call filter_zonal_waves(gvpp)
          do jlev = 1 , NLEV
-            call filter_zonal_waves(gtn(1,1,jlev))
-            call filter_zonal_waves(gut(1,jlev))
-            call filter_zonal_waves(gvt(1,jlev))
-            call filter_zonal_waves(gfv(1,jlev))
-            call filter_zonal_waves(gfu(1,jlev))
-            call filter_zonal_waves(gke(1,jlev))
+            call filter_zonal_waves(gtn(:,:,jlev))
+            call filter_zonal_waves(gut(:,jlev))
+            call filter_zonal_waves(gvt(:,jlev))
+            call filter_zonal_waves(gfv(:,jlev))
+            call filter_zonal_waves(gfu(:,jlev))
+            call filter_zonal_waves(gke(:,jlev))
          enddo
       endif
       !$OMP end single
 
       !$OMP do
       do jlev = 1 , NLEV
-         call mktend(sdf(1,jlev),stf(1,jlev),szf(1,jlev),gtn(1,1,jlev),&
-                     gfu(1,jlev),gfv(1,jlev),gke(1,jlev),gut(1,jlev),gvt(1,jlev))
+         call mktend(sdf(:,jlev),stf(:,jlev),szf(:,jlev),gtn(:,:,jlev),&
+                     gfu(:,jlev),gfv(:,jlev),gke(:,jlev),gut(:,jlev),gvt(:,jlev))
       enddo
       !$OMP end do
       !$OMP end parallel
 
-      if (nruido > 0) call stepruido
-      call mpsumsc(spf,spt,1)
-      call mpsumsc(stf,stt,NLEV)
-      call mpsumsc(sdf,sdt,NLEV)
-      call mpsumsc(szf,szt,NLEV)
+      if (nruido > 0) call stepruido      ! 在运行中是否还要加随机扰动? 这里计算ruido数组
+      spt   = spf    !call mpsumsc(spf,spt,1)
+      stt   = stf    !call mpsumsc(stf,stt,NLEV)
+      sdt   = sdf    !call mpsumsc(sdf,sdt,NLEV)
+      szt   = szf    !call mpsumsc(szf,szt,NLEV)
 
-      if (ngui > 0 .or. mod(nstep,ndiag) == 0) then
+      if (mod(nstep,ndiag) == 0) then
          call fc2gp(gp,NLON,NLPP)
          zgpp(:) = exp(gp)                ! LnPs -> Ps
-         call mpgagp(zgp,zgpp,1)          ! zgp = Ps (full grid)
+         !call mpgagp(zgp,zgpp,1)         ! zgp = Ps (full grid)
+         zgp = reshape(zgpp,(/NLON,NLAT/))! zgp = Ps (full grid)
 	 !XW(Mar/25/2017) to remove GUI:
          !if (ngui > 0) then
          !   call guips(zgp,psmean)        
@@ -3266,11 +3121,11 @@ end subroutine master
          call gp2fc(zgpp,NLON,NLPP)
          call fc2sp(zgpp,span)
 
-         call mpsum(span,1)               ! span = Ps spectral
-         call mpgacs(csu)
-         call mpgacs(csv)
-         call mpgacs(cst)
-         if (mypid == NROOT) then
+         !call mpsum(span,1)              ! span = Ps spectral
+         !call mpgacs(csu)
+         !call mpgacs(csv)
+         !call mpgacs(cst)
+         !if (mypid == NROOT) then
             call altcs(csu)
             call altcs(csv)
             call altcs(cst)
@@ -3285,17 +3140,20 @@ end subroutine master
             !   zsp(:) = span(1:NRSP)
             !   call guiput("SPAN" // char(0) ,zsp ,NCSP,-NTP1,1)
             !endif
-         endif
+         !endif
       endif
       return
-      end
+      end subroutine gridpoint
+
 
 !     =================
 !     SUBROUTINE CALCGP
+!     高密度计算模块
+!     深挖scalable computing
 !     =================
       subroutine calcgp(gtn,gpm,gvp)
-
       use pumamod
+      implicit none
 
 !     Comments by Torben Kunz and Guido Schroeder
 
@@ -3346,13 +3204,18 @@ end subroutine master
 !                         with respect to sigma
 
       real gtn(NHOR,NLEV)
-      real gpm(NHOR)     , gvp(NHOR)
+      real gpm(NHOR)
+      real gvp(NHOR)
+
+      ! local
       real zsdotp(NHOR,NLEM),zsumd(NHOR),zsumvp(NHOR),zsumvpm(NHOR)
       real ztpta(NHOR),ztptb(NHOR)
       real zvgpg(NHOR,NLEV)
       real gtd(NHOR,NLEM)
       real gud(NHOR,NLEM)
       real gvd(NHOR,NLEM)
+
+      integer :: jlev,jlej
 
 !     1.
 !     1.1 zvgpg: (u,v) * grad(ln(ps))
@@ -3512,14 +3375,25 @@ end subroutine master
       if (nruido > 0) gtn(:,:) = gtn(:,:) + ruidop(:,:)
 
       return
-      end
+      end subroutine calcgp
+
 
 !     ===================
 !     SUBROUTINE SPECTRAL
+!     Calling tree:
+!     - filter_spectral_modes : SP滤波
+!     - mkenerdiag            : 诊断Energy
+!     - mkentrodiag           : 诊断Entropy
+!     - heatgp                : GP空间中 运行中时间维的加热 理想的Newtonian Cooling
+!     - diagp                 : GP空间中 运行中时间维的加热 来自文件的读入数据
+!     - vdiff                 : 计算垂直方向的耗散 (div, vor, T)
+!     - mkdheat               : 对耗散动能的能量回收，加热周围环境
+!     MPI: mpgallsp, mpsumbcr, mrdiff
 !     ===================
 
       subroutine spectral
       use pumamod
+      implicit none
 
 !*    Add adiabatic and diabatic tendencies - perform leapfrog
 
@@ -3589,6 +3463,12 @@ end subroutine master
       real,allocatable :: zdtgp(:,:)   ! 
       real,allocatable :: zsum1(:)
       real,allocatable :: zgw(:)
+
+      ! Xinyu added
+      real     :: z0, za, zb, zm, zq
+      real     :: zampl, zcp, zsum3, zt, ztp, zztm
+      integer  :: jhor, jsp, jn, jlon, jlat, jlev
+
 
 !     0. Special code for experiments with mode filtering
 
@@ -3756,7 +3636,7 @@ end subroutine master
        zstte(:,:,1)=stt(:,:)
       endif
 
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          spp(1) = 0.0
          spp(2) = 0.0
          szt(3,:) = szt(3,:) + plavor * (fric(:) - sak(3))
@@ -3764,7 +3644,7 @@ end subroutine master
           zszte(3,:,1) = zszte(3,:,1) + plavor * fric(:)
           zszte(3,:,2) = zszte(3,:,2) - plavor * sak(3)
          endif
-      endif
+      !endif
 !
 !     6b) call for vertical diffusion
 !
@@ -3823,9 +3703,9 @@ end subroutine master
          zgw(jhor)=gwd(jlat)
         enddo
        enddo
-       call mpgallsp(zst,stp,NLEV)
-       call mpgallsp(zstt,stt,NLEV)
-       call mpgallsp(zspf,zsp,1)
+       zst  = stp    !call mpgallsp(zst,stp,NLEV)
+       zstt = stt    !call mpgallsp(zstt,stt,NLEV)
+       zspf = zsp    !call mpgallsp(zspf,zsp,1)
        do jlev = 1 , NLEV
           call sp2fc(zst(1,jlev),ztgp(1,jlev))
           call sp2fc(zstt(1,jlev),zdtgp(1,jlev))
@@ -3853,15 +3733,14 @@ end subroutine master
      &                       ,mask=(zdtgp(:,jlev) < 0.))
        enddo
        zsum3=SUM(zgw(:))
-       call mpsumbcr(zsum1,4)
-       call mpsumbcr(zsum3,1)
+       !call mpsumbcr(zsum1,4)
+       !call mpsumbcr(zsum3,1)
        zsum1(:)=zsum1(:)/zsum3
-       if(mypid == NROOT) then
-        ztp=zsum1(1)/zsum1(3)
-        zztm=zsum1(2)/zsum1(4)
-        write(9,*) zsum1(:),zsum1(1)/zsum1(3),zsum1(2)/zsum1(4)         &
-     &            ,(ztp-zztm)/ztp
-       endif
+       !if(mypid == NROOT) then
+         ztp=zsum1(1)/zsum1(3)
+         zztm=zsum1(2)/zsum1(4)
+         write(9,*) zsum1(:),zsum1(1)/zsum1(3),zsum1(2)/zsum1(4),(ztp-zztm)/ztp
+       !endif
        deallocate(zst)
        deallocate(zstt)
        deallocate(zspf)
@@ -3880,17 +3759,16 @@ end subroutine master
 
 !     11. Coupling for synchronization runs
 
-      if (mrnum == 2 .and. nsync > 0) then
-         call mrdiff(stp,std,NESP,NLEV)
-         call mrdiff(sdp,sdd,NESP,NLEV)
-         call mrdiff(szp,szd,NESP,NLEV)
-         call mrdiff(spp,spd,NESP,   1)
-         stp(:,:) = stp(:,:) + syncstr * std(:,:)
-         sdp(:,:) = sdp(:,:) + syncstr * sdd(:,:)
-         szp(:,:) = szp(:,:) + syncstr * szd(:,:)
-         spp(:  ) = spp(:  ) + syncstr * spd(:  )
-
-      endif
+      !if (mrnum == 2 .and. nsync > 0) then
+      !   call mrdiff(stp,std,NESP,NLEV)         ! 我认为完全可以去掉 !
+      !   call mrdiff(sdp,sdd,NESP,NLEV)
+      !   call mrdiff(szp,szd,NESP,NLEV)
+      !   call mrdiff(spp,spd,NESP,   1)
+      !   stp(:,:) = stp(:,:) + syncstr * std(:,:)
+      !   sdp(:,:) = sdp(:,:) + syncstr * sdd(:,:)
+      !   szp(:,:) = szp(:,:) + syncstr * szd(:,:)
+      !   spp(:  ) = spp(:  ) + syncstr * spd(:  )
+      !endif
 
 !     8. Apply Robert Asselin time filter (not for short initial timesteps)
 !        d(t) = pnu * f(t-1) + pnu * f(t+1) - 2 * pnu * f(t)
@@ -3929,7 +3807,7 @@ end subroutine master
 
 !     9. Save spectral arrays for extended output
 
-      if (nextout == 1 .and. mypid == NROOT) then
+      if (nextout == 1) then
          if (mod(nstep,nafter) == nafter - 2) then
             if (.not. allocated(st2)) allocate(st2(nesp,nlev))
             st2(:,:) = st(:,:)
@@ -3946,10 +3824,10 @@ end subroutine master
 
 !     10. Gather spectral modes from all processes
 
-      call mpgallsp(sp,spp,   1)
-      call mpgallsp(sd,sdp,NLEV)
-      call mpgallsp(sz,szp,NLEV)
-      call mpgallsp(st,stp,NLEV)
+      sp = spp    !call mpgallsp(sp,spp,   1)
+      sd = sdp    !call mpgallsp(sd,sdp,NLEV)
+      sz = szp    !call mpgallsp(sz,szp,NLEV)
+      st = stp    !call mpgallsp(st,stp,NLEV)
 
       if(nenergy > 0 .or. nentropy > 0) then
        deallocate(zstte)
@@ -3964,18 +3842,7 @@ end subroutine master
       endif
 
       return
-      end
-
-      subroutine mrcheck(f)
-      use pumamod
-      real :: f(*)
-      write (nud,'(/,i3,8f8.4)')  0,f(1:16:2)
-      write (nud,'(  i3,8f8.4)')  8,f(17:32:2)
-      write (nud,'(  i3,8f8.4)') 16,f(33:48:2)
-      write (nud,'(  i3,8f8.4)') 24,f(49:64:2)
-      write (nud,'(  i3,8f8.4)') 32,f(65:80:2)
-      return
-      end    
+      end subroutine spectral
 
 
 !     ================
@@ -3984,6 +3851,7 @@ end subroutine master
 
       subroutine diagp(zampl)
       use pumamod
+      implicit none
 
       real :: zstf(NESP,NLEV)
       real :: zgr12(NHOR,NLEV)
@@ -3995,11 +3863,12 @@ end subroutine master
       real :: gdtmp(NHOR)
 
       real :: zampl
+      integer :: jlev
 
       !--- transform temperature and divergence to grid point space
-      call mpgallsp(st,stp,NLEV)
+      st = stp    !call mpgallsp(st,stp,NLEV)
       if (nconv > 0) then
-         call mpgallsp(sd,sdp,NLEV)
+         sd = sdp !call mpgallsp(sd,sdp,NLEV)
       endif
       do jlev=1,NLEV
          call sp2fc(st(1,jlev)   ,gt(1,jlev)   )
@@ -4033,10 +3902,11 @@ end subroutine master
       do jlev=1,NLEV
          call fc2sp(zgtt(1,jlev),zstf(1,jlev))
       enddo
-      call mpsumsc(zstf,stt,NLEV)
+      stt   = zstf   !call mpsumsc(zstf,stt,NLEV)
 
       return
       end subroutine diagp
+
 
 !     =================
 !     SUBROUTINE HEATGP
@@ -4044,6 +3914,7 @@ end subroutine master
 
       subroutine heatgp(zampl)
       use pumamod
+      implicit none
 
       real :: zsr12(NESP,NLEV)
       real :: zsrp12(NSPP,NLEV)
@@ -4052,10 +3923,11 @@ end subroutine master
       real :: zgtt(NHOR,NLEV)
 
       real :: zampl
+      integer :: jlev
 
       zsrp12(:,:)=srp1(:,:)+srp2(:,:)*zampl
-      call mpgallsp(zsr12,zsrp12,NLEV)
-      call mpgallsp(st,stp,NLEV)
+      zsr12 = zsrp12    !call mpgallsp(zsr12,zsrp12,NLEV)
+      st    = stp       !call mpgallsp(st,stp,NLEV)
       do jlev=1,NLEV
          call sp2fc(zsr12(1,jlev),zgr12(1,jlev))
          call sp2fc(st(1,jlev)   ,gt(1,jlev)   )
@@ -4071,10 +3943,11 @@ end subroutine master
       do jlev=1,NLEV
          call fc2sp(zgtt(1,jlev),zstf(1,jlev))
       enddo
-      call mpsumsc(zstf,stt,NLEV)
+      stt   = zstf   !call mpsumsc(zstf,stt,NLEV)
 
       return
-      end
+      end subroutine heatgp
+
 
 !     ================
 !     SUBROUTINE VDIFF
@@ -4082,14 +3955,19 @@ end subroutine master
 
       subroutine vdiff(pt,pz,pd,ptt,pzt,pdt)
       use pumamod
+      implicit none
 !
-      parameter(ztref=250.)
+      real, parameter :: ztref=250.0
+
       real pt(NSPP,NLEV),pz(NSPP,NLEV),pd(NSPP,NLEV)
       real ptt(NSPP,NLEV),pzt(NSPP,NLEV),pdt(NSPP,NLEV)
       real ztn(NSPP,NLEV),zzn(NSPP,NLEV),zdn(NSPP,NLEV)
       real zebs(NLEM)
       real zskap(NLEV),zskaph(NLEV)
       real zkdiff(NLEM)
+
+      real :: zdelt, zkonst1, zkonst2
+      integer :: jlp,jlev,jlep,jlem
 !
       zdelt=delt2/ww_scale
       zkonst1=ga*zdelt/gascon
@@ -4197,15 +4075,16 @@ end subroutine master
       return
       end subroutine vdiff
 
+
 !     =================
 !     SUBROUTINE GASDEV
 !     =================
-
 !     Gaussian noise generator with zero mean and unit variance.
 
-      real function gasdev() 
+      function gasdev() 
       use pumamod
       implicit none
+      real :: gasdev
       real :: fr, vx, vy, ra
 
       if (ganext == 0.0) then
@@ -4224,9 +4103,8 @@ end subroutine master
          gasdev = ganext
          ganext = 0.0
       endif
+      end function gasdev
 
-      return
-      end
 
 !     =================
 !     SUBROUTINE SPONGE
@@ -4234,8 +4112,10 @@ end subroutine master
 
       subroutine sponge
       use pumamod
+      implicit none
 
       real :: zp
+      integer :: jlev
 
 !     This introduces a simple sponge layer to the highest model levels
 !     by applying Rayleigh friction there, according to
@@ -4279,7 +4159,7 @@ end subroutine master
  9995 format('*',i4,' * ',f7.4,' *',' SPONGE        *')
  9996 format('*  Lv * [1/day] *               *')
  9997 format('* Rayleigh damping coefficients *')
-      end
+      end subroutine sponge
 
 
 !     =====================
@@ -4288,6 +4168,7 @@ end subroutine master
 
       subroutine mkenerdiag(pst,pstt,psp,pspt,penergy)
       use pumamod
+      implicit none
 !
       real :: pst(NSPP,NLEV),pstt(NSPP,NLEV)
       real :: psp(NSPP),pspt(NSPP)
@@ -4298,14 +4179,17 @@ end subroutine master
       real :: zgtt(NHOR,NLEV),zgt(NHOR,NLEV)
       real :: zgps(NHOR),zgpst(NHOR)
       real :: ztm(NHOR)
+
+      real :: zcp, zdelt
+      integer :: jlev
 !
       zcp=gascon/akap
       zdelt=delt2/ww_scale
 !
-      call mpgallsp(zsttf,pstt,NLEV)
-      call mpgallsp(zstf,pst,NLEV)
-      call mpgallsp(zsptf,pspt,1)
-      call mpgallsp(zspf,psp,1)
+      zsttf = pstt   !call mpgallsp(zsttf,pstt,NLEV)
+      zstf  = pst    !call mpgallsp(zstf,pst,NLEV)
+      zsptf = pspt   !call mpgallsp(zsptf,pspt,1)
+      zspf  = psp    !call mpgallsp(zspf,psp,1)
 
       do jlev=1,NLEV
        call sp2fc(zsttf(:,jlev),zgtt(:,jlev))
@@ -4330,11 +4214,10 @@ end subroutine master
        ztm(:)=ztm(:)+zgt(:,jlev)*dsigma(jlev)
        penergy(:)=penergy(:)+zgtt(:,jlev)*dsigma(jlev)
       enddo
-      penergy(:)=ztm(:)*zcp*zgpst(:)/ga                                 &
-     &          +penergy(:)*zcp*zgps(:)/ga
+      penergy(:)=ztm(:)*zcp*zgpst(:)/ga+penergy(:)*zcp*zgps(:)/ga
 !
-      return
-      end
+      end subroutine mkenerdiag
+
 
 !     ======================
 !     SUBROUTINE MKENTRODIAG
@@ -4342,6 +4225,7 @@ end subroutine master
 
       subroutine mkentrodiag(pst,pstt,psp,pentropy)
       use pumamod
+      implicit none
 !
       real :: pst(NSPP,NLEV),pstt(NSPP,NLEV)
       real :: psp(NSPP)
@@ -4351,12 +4235,15 @@ end subroutine master
       real :: zspf(NESP)
       real :: zgtt(NHOR,NLEV),zgt(NHOR,NLEV)
       real :: zgps(NHOR)
+
+      real :: zcp
+      integer :: jlev
 !
       zcp=gascon/akap
 !
-      call mpgallsp(zsttf,pstt,NLEV)
-      call mpgallsp(zstf,pst,NLEV)
-      call mpgallsp(zspf,psp,1)
+      zsttf = pstt   !call mpgallsp(zsttf,pstt,NLEV)
+      zstf  = pst    !call mpgallsp(zstf,pst,NLEV)
+      zspf  = psp    !call mpgallsp(zspf,psp,1)
 
       do jlev=1,NLEV
        call sp2fc(zsttf(:,jlev),zgtt(:,jlev))
@@ -4379,7 +4266,8 @@ end subroutine master
       pentropy(:)=pentropy(:)*zcp*zgps(:)/ga                               
 !
       return
-      end
+      end subroutine mkentrodiag
+
 
 !     ==================
 !     SUBROUTINE MKDHEAT
@@ -4387,6 +4275,7 @@ end subroutine master
 
       subroutine mkdheat(zszt1,zszt2,zsdt1,zsdt2,zsp)
       use pumamod
+      implicit none
 !
 !     'recycle' kin. energy loss by heating the environment
 !
@@ -4412,6 +4301,9 @@ end subroutine master
       real zstt(NSPP,NLEV),zstf(NESP,NLEV)
       real zstt1(NSPP,NLEV),zstf1(NESP,NLEV),zstt3(NSPP,NLEV)
       real zstt2(NSPP,NLEV),zstf2(NESP,NLEV),zstf3(NESP,NLEV)
+
+      real :: zcp, zdelt
+      integer :: jlev
 !
 !     some constants
 !
@@ -4425,8 +4317,8 @@ end subroutine master
 !
       zsdp(:,:)=sdp(:,:)
       zszp(:,:)=szp(:,:)
-      call mpgallsp(zsd,zsdp,NLEV)
-      call mpgallsp(zsz,zszp,NLEV)
+      zsd   = zsdp   !call mpgallsp(zsd,zsdp,NLEV)
+      zsz   = zszp   !call mpgallsp(zsz,zszp,NLEV)
       do jlev = 1 , NLEV
          call dv2uv(zsd(1,jlev),zsz(1,jlev),zu(1,jlev),zv(1,jlev))
       enddo
@@ -4437,8 +4329,8 @@ end subroutine master
 !
       zsdp(:,:)=sdp(:,:)+zsdt1(:,:)*delt2
       zszp(:,:)=szp(:,:)+zszt1(:,:)*delt2
-      call mpgallsp(zsd,zsdp,NLEV)
-      call mpgallsp(zsz,zszp,NLEV)
+      zsd   = zsdp   !call mpgallsp(zsd,zsdp,NLEV)
+      zsz   = zszp   !call mpgallsp(zsz,zszp,NLEV)
       do jlev = 1 , NLEV
          call dv2uv(zsd(1,jlev),zsz(1,jlev),zun(1,jlev),zvn(1,jlev))
       enddo
@@ -4468,9 +4360,9 @@ end subroutine master
 !
       zsdp(:,:)=sdp(:,:)+zsdt2(:,:)*delt2
       zszp(:,:)=szp(:,:)+zszt2(:,:)*delt2
-      call mpgallsp(zsd,zsdp,NLEV)
-      call mpgallsp(zsz,zszp,NLEV)
-      call mpgallsp(zspf,zsp,1)
+      zsd   = zsdp   !call mpgallsp(zsd,zsdp,NLEV)
+      zsz   = zszp   !call mpgallsp(zsz,zszp,NLEV)
+      zspf  = zsp    !call mpgallsp(zspf,zsp,1)
       do jlev = 1 , NLEV
          call dv2uv(zsd(1,jlev),zsz(1,jlev),zun(1,jlev),zvn(1,jlev))
       enddo
@@ -4502,8 +4394,8 @@ end subroutine master
       do jlev=1,NLEV
        call fc2sp(zdekin(:,jlev),zsdef(:,jlev))
       enddo
-      call mpsumsc(zsdef,zsde,NLEV)
-      call mpgallsp(zsdef,zsde,NLEV)
+      zsde  = zsdef  !call mpsumsc(zsdef,zsde,NLEV)
+      zsdef = zsde   !call mpgallsp(zsdef,zsde,NLEV)
       zsdef(2:NESP,:)=0.
       do jlev = 1 , NLEV
          call sp2fc(zsdef(1,jlev),zdekin(1,jlev))
@@ -4530,9 +4422,9 @@ end subroutine master
        call fc2sp(zdtdt2(:,jlev),zstf2(:,jlev))
        call fc2sp(zdtdt3(:,jlev),zstf3(:,jlev))
       enddo
-      call mpsumsc(zstf1,zstt1,NLEV)
-      call mpsumsc(zstf2,zstt2,NLEV)
-      call mpsumsc(zstf3,zstt3,NLEV)
+      zstt1 = zstf1  !call mpsumsc(zstf1,zstt1,NLEV)
+      zstt2 = zstf2  !call mpsumsc(zstf2,zstt2,NLEV)
+      zstt3 = zstf3  !call mpsumsc(zstf3,zstt3,NLEV)
 !
 !     add the temprature tendencies
 !
@@ -4551,161 +4443,38 @@ end subroutine master
        call mkentrodiag(stp,zstt2,zsp,dentropy(:,6))
        call mkentrodiag(stp,zstt3,zsp,dentropy(:,7))
       endif
-
 !
       return
       end subroutine mkdheat
 
+
 !     =================
 !     SUBROUTINE MKEKIN
+!     XW deleted:
+!      subroutine mkekin(zszp,zsdp,zp,zekin)
+!      subroutine mkekin2(zszp,zsdp,zspp,zekin)
 !     =================
-
-      subroutine mkekin(zszp,zsdp,zp,zekin)
-      use pumamod
-!
-      real zszp(NSPP,NLEV),zsdp(NSPP,NLEV)
-      real zp(NHOR),zekin(NHOR)
-!
-      real zsd(NESP,NLEV),zsz(NESP,NLEV)
-      real zu(NHOR,NLEV),zv(NHOR,NLEV)
-!
-!     some constants
-!
-      zdelt=delt2/ww_scale     ! timestep in s
-      zcp=gascon/akap    ! heat capacity
-!
-      call mpgallsp(zsd,zsdp,NLEV)
-      call mpgallsp(zsz,zszp,NLEV)
-      do jlev = 1 , NLEV
-         call dv2uv(zsd(1,jlev),zsz(1,jlev),zu(1,jlev),zv(1,jlev))
-      enddo
-      call fc2gp(zu,NLON,NLPP*NLEV)
-      call fc2gp(zv,NLON,NLPP*NLEV)
-!
-      zekin(:)=0.
-      do jlev = 1 , NLEV
-       zu(:,jlev)=cv*zu(:,jlev)*SQRT(rcsq(:))
-       zv(:,jlev)=cv*zv(:,jlev)*SQRT(rcsq(:))
-       zekin(:)=(zu(:,jlev)*zu(:,jlev)+zv(:,jlev)*zv(:,jlev))*0.5       &
-     &         *zp(:)/ga*dsigma(jlev)+zekin(:)
-      enddo
-!
-      return
-      end
-      subroutine mkekin2(zszp,zsdp,zspp,zekin)
-      use pumamod
-!
-      real zszp(NSPP,NLEV),zsdp(NSPP,NLEV),zspp(NSPP)
-      real zp(NHOR),zekin(NHOR)
-!
-      real zsd(NESP,NLEV),zsz(NESP,NLEV),zsp(NESP)
-      real zu(NHOR,NLEV),zv(NHOR,NLEV)
-!
-!     some constants
-!
-      zdelt=delt2/ww_scale     ! timestep in s
-      zcp=gascon/akap    ! heat capacity
-!
-      call mpgallsp(zsd,zsdp,NLEV)
-      call mpgallsp(zsz,zszp,NLEV)
-      call mpgallsp(zsp,zspp,NLEV)
-      do jlev = 1 , NLEV
-         call dv2uv(zsd(1,jlev),zsz(1,jlev),zu(1,jlev),zv(1,jlev))
-      enddo
-      call sp2fc(zsp,zp)
-      call fc2gp(zu,NLON,NLPP*NLEV)
-      call fc2gp(zv,NLON,NLPP*NLEV)
-      call fc2gp(zp,NLON,NLPP)
-!
-      zp(:)=psurf*exp(zp(:))
-      zekin(:)=0.
-      do jlev = 1 , NLEV
-       zu(:,jlev)=cv*zu(:,jlev)*SQRT(rcsq(:))
-       zv(:,jlev)=cv*zv(:,jlev)*SQRT(rcsq(:))
-       zekin(:)=(zu(:,jlev)*zu(:,jlev)+zv(:,jlev)*zv(:,jlev))*0.5       &
-     &         *zp(:)/ga*dsigma(jlev)+zekin(:)
-      enddo
-!
-      return
-      end
-
 
 !     =================
 !     SUBROUTINE MKEPOT
+!     XW deleted:
+!     subroutine mkepot(zstp,zp,zepot)
+!     subroutine mkepot2(zstp,zspp,zepot)
 !     =================
 
-      subroutine mkepot(zstp,zp,zepot)
-      use pumamod
-!
-      real zstp(NSPP,NLEV)
-      real zp(NHOR),zepot(NHOR)
-!
-      real zst(NESP,NLEV)
-      real zt(NHOR,NLEV)
-!
-!     some constants
-!
-      zdelt=delt2/ww_scale     ! timestep in s
-      zcp=gascon/akap    ! heat capacity
-!
-      call mpgallsp(zst,zstp,NLEV)
-      do jlev = 1 , NLEV
-       call sp2fc(zst(1,jlev),zt(1,jlev))
-      enddo
-      call fc2gp(zt,NLON,NLPP*NLEV)
-!
-      zepot(:)=0.
-      do jlev = 1 , NLEV
-       zt(:,jlev)=ct*(zt(:,jlev)+t0(jlev))
-       zepot(:)=zt(:,jlev)*zcp   &
-     &         *zp(:)/ga*dsigma(jlev)+zepot(:)
-      enddo
-!
-      return
-      end
-      subroutine mkepot2(zstp,zspp,zepot)
-      use pumamod
-!
-      real zstp(NSPP,NLEV),zspp(NSPP)
-      real zp(NHOR),zepot(NHOR)
-!
-      real zst(NESP,NLEV),zsp(NESP)
-      real zt(NHOR,NLEV)
-!
-!     some constants
-!
-      zdelt=delt2/ww_scale     ! timestep in s
-      zcp=gascon/akap    ! heat capacity
-!
-      call mpgallsp(zst,zstp,NLEV)
-      call mpgallsp(zsp,zspp,1)
-      do jlev = 1 , NLEV
-       call sp2fc(zst(1,jlev),zt(1,jlev))
-      enddo
-      call sp2fc(zsp,zp)
-      call fc2gp(zt,NLON,NLPP*NLEV)
-      call fc2gp(zp,NLON,NLPP)
-!
-      zp(:)=psurf*exp(zp(:))
-      zepot(:)=0.
-      do jlev = 1 , NLEV
-       zt(:,jlev)=ct*(zt(:,jlev)+t0(jlev))
-       zepot(:)=zt(:,jlev)*zcp   &
-     &         *zp(:)/ga*dsigma(jlev)+zepot(:)
-      enddo
-!
-      return
-      end
 
-      ! Compute mastercpu time
-      ! XW(2017/4/9)
-      subroutine mastercpu_time(x)
-      implicit none
-      real(kind=8), intent(out) :: x
-      ! local
-      integer, dimension(8) :: v
-      call date_and_time(values=v)
-      ! count from the begining of THIS month
-      x = 86400.0*v(3)+3600.0*v(5)+60.0*v(6)+v(7)+v(8)/1000.0
-      end subroutine mastercpu_time
+!========================
+! Compute mastercpu time
+! XW(2017/4/9)
+!========================
+subroutine mastercpu_time(x)
+   implicit none
+   real(kind=8), intent(out) :: x
+   ! local
+   integer, dimension(8) :: v
+   call date_and_time(values=v)
+   ! SO FAR, only count from the begining of THIS month
+   ! 目前只以当月1日为起点进行计时，以后要改进为绝对零点，考虑闰年问题即可
+   x = 86400.0*v(3)+3600.0*v(5)+60.0*v(6)+v(7)+v(8)/1000.0
+end subroutine mastercpu_time
 

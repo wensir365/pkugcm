@@ -1,7 +1,7 @@
 !====================================
 ! PKUGCM MODULE "io"
 ! -----------------------------------
-! Creat, collect, and write outputs
+! Open, collect, and write outputs
 ! Xinyu Wen, Peking Univ, Apr/13/2017
 !====================================
 
@@ -35,26 +35,24 @@ subroutine io_write_output
    implicit none
 
    ! local
-   real, dimension(NRSP)            :: sp2d
-   real, dimension(NRSP,NLEV)       :: sp3d
    real, dimension(NLON,NLAT,NLEV)  :: x3d, y3d
    real, dimension(NLON,NLAT)       :: x2d, y2d
    real, dimension(NLAT)            :: scal
    real                             :: offs
    integer :: jlon,jlat,jlev
 
+
    !--- Surface Pressure ---
-   !call mpgallsp(sp2d,spp,1)        ! key difference over serial version
-   !call sp2fc(sp2d,x2d)
-   !call fc2gp(x2d,NLON,NLAT)
-   !call alt2reg(x2d,1)
-   !x2d   = exp(x2d)*psurf           ! psurf=1011mb
+   call sp2fc(sp,x2d)
+   call fc2gp(x2d,NLON,NLAT)
+   call alt2reg(x2d,1)
+   x2d = exp(x2d)*psurf    ! psurf=1011mb
+   
+   write(fid(1)) x2d
 
-   !write(fid(1)) x2d
-
-   !--- U and V ---
-   call mpgagp(x3d,gu(:,:),NLEV)
-   call mpgagp(y3d,gv(:,:),NLEV)
+   !---  U and V ---
+   x3d   = reshape(gu(:,:),(/NLON,NLAT,NLEV/))     ! gu(NLONxNLAT,NLEV)
+   y3d   = reshape(gv(:,:),(/NLON,NLAT,NLEV/))     ! gv(NLONxNLAT,NLEV)
    scal  = cv/sqrt(csq(:))
    offs  = 0.0
 
@@ -71,10 +69,41 @@ subroutine io_write_output
    write(fid(2)) x3d
    write(fid(3)) y3d
 
+   !--- Div and Vor ---
+   do jlev = 1, NLEV
+      ! div
+      call sp2fc(sd(:,jlev),x3d(:,:,jlev))
+      call fc2gp(x3d(:,:,jlev),NLON,NLAT)
+      ! vor
+      call sp2fc(sz(:,jlev),y3d(:,:,jlev))
+      call fc2gp(y3d(:,:,jlev),NLON,NLAT)
+   end do
+
+   offs = 0.0
+   x3d = x3d * ww_scale + offs
+   y3d = y3d * ww_scale + offs
+         
+   call alt2reg(x3d,NLEV)
+   call alt2reg(y3d,NLEV)
+
+   write(fid(4)) x3d
+   write(fid(5)) y3d
+
+   !--- Temperature ---
+   do jlev = 1, NLEV
+      call sp2fc(st(:,jlev),x3d(:,:,jlev))
+      call fc2gp(x3d(:,:,jlev),NLON,NLAT)
+      x3d(:,:,jlev) = x3d(:,:,jlev) * ct + t0(jlev)*ct
+   end do
+   call alt2reg(x3d,NLEV)
+
+   write(fid(6)) x3d
+
    !--- count ---
    writecount = writecount + 1
 
-end subroutine io_write_output
+end subroutine
+
 
 !=====================
 ! io_open_output

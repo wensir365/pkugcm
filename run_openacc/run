@@ -1,0 +1,19 @@
+#!/bin/bash
+
+export OMP_NUM_THREADS=2
+
+date
+
+# T21
+./pkugcm.x 32 10
+
+# T42
+#./pkugcm.x 64 10
+
+# T85
+#./pkugcm.x 128 10
+
+# T170
+#./pkugcm.x 256 10
+
+date
