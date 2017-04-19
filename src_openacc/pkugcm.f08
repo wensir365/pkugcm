@@ -1413,7 +1413,7 @@ end subroutine master
       rdsig(:) = 0.5 / dsigma(:)
 
       sigma(1     ) = 0.5 * sigmh(1)
-      sigma(2:NLEV) = 0.5 * (sigmh(1:NLEM) + sigmh(2:NLEV))
+      sigma(2:NLEV) = 0.5 * (sigmh(1:NLEV-1) + sigmh(2:NLEV))
 
 !     Initialize profile of tau R if not set in namelist
 

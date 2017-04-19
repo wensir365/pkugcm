@@ -9,17 +9,18 @@ module io
 
    implicit none
 
-   integer, parameter :: Nvar    = 6
+   integer, parameter :: Nvar    = 7
 
-   integer, dimension(Nvar)           :: lev = (/ 1   , 10  , 10  , 10  , 10  , 10  /)
-   integer, dimension(Nvar)           :: fid = (/ 901 , 902 , 903 , 904 , 905 , 906 /)
-   character(len=3),  dimension(Nvar) :: vid = (/"ps ","u  ","v  ","div","vor","t  "/)
+   integer, dimension(Nvar)           :: lev = (/ 1   , 10  , 10  , 10  , 10  , 10  ,  10 /)
+   integer, dimension(Nvar)           :: fid = (/ 901 , 902 , 903 , 904 , 905 , 906 , 907 /)
+   character(len=3),  dimension(Nvar) :: vid = (/"ps ","u  ","v  ","div","vor","t  ","z  "/)
    character(len=30), dimension(Nvar) :: desc= (/"Surface Pressure (mb)         ", &
                                                  "U Wind (m/s)                  ", &
                                                  "V Wind (m/s)                  ", &
                                                  "Div (m/s^2)                   ", &
                                                  "Vor (m/s^2)                   ", &
-                                                 "Temperature (K)               " /)
+                                                 "Temperature (K)               ", &
+                                                 "Geopotential (m2/s2)          " /)
    integer(kind=8) :: writecount
 
 end module io
@@ -89,11 +90,12 @@ subroutine io_write_output
    write(fid(4)) x3d
    write(fid(5)) y3d
 
-   !--- Temperature ---
+   !--- Temperature and Geopotential---
    do jlev = 1, NLEV
       call sp2fc(st(:,jlev),x3d(:,:,jlev))
       call fc2gp(x3d(:,:,jlev),NLON,NLAT)
-      x3d(:,:,jlev) = x3d(:,:,jlev) * ct + t0(jlev)*ct
+      x3d(:,:,jlev) = x3d(:,:,jlev) * ct + t0(jlev)*ct   ! Temp
+      y3d(:,:,jlev) = 
    end do
    call alt2reg(x3d,NLEV)
 

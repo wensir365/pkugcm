@@ -6,8 +6,8 @@
 #=====================
 # GNU gfortran
 F90    = gfortran
-FLAGS  = -O3 -fopenmp #-Wall #-pg 
-#OTHERS = -ffree-line-length-none
+FLAGS  = -Ofast -fopenmp#-Wall #-pg 
+OTHERS = -ffree-line-length-none
 #USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
 
 # PGI pgfortran
@@ -32,17 +32,17 @@ FLAGS  = -O3 -fopenmp #-Wall #-pg
 #====================
 OBJ = pkugcm.o mod_fft.o mod_legsym.o mod_restart.o mod_io.o
 
-%.o : %.f90
+%.o : %.f08
 	${F90} $(FLAGS) $(OTHERS) -c $<
 
 puma.x:	$(OBJ)
 	${F90} $(FLAGS) -o pkugcm.x $(OBJ)
 
-pkugcm.o:      pkugcm.f90
-mod_fft.o:     mod_fft.f90
-mod_legsym.o:  mod_legsym.f90
-mod_restart.o: mod_restart.f90
-mod_io.o:      mod_io.f90
+pkugcm.o:      pkugcm.f08
+mod_fft.o:     mod_fft.f08
+mod_legsym.o:  mod_legsym.f08
+mod_restart.o: mod_restart.f08
+mod_io.o:      mod_io.f08
 
 #====================
 # 4. Clean
@@ -58,5 +58,5 @@ cleanmod:
  
 cleanall:
 	rm -f *.o *.mod
-	rm -f puma.x
+	rm -f pkugcm.x
 
