@@ -385,7 +385,7 @@ pure  subroutine dfft4(a,trigs,n,lot,la)
 !     SUBROUTINE DFFT8
 !     ================
 
-pure  subroutine dfft8(a,c,n,lot)
+  subroutine dfft8(a,c,n,lot)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(in)  :: a
@@ -397,17 +397,12 @@ pure  subroutine dfft8(a,c,n,lot)
       real, dimension(lot) :: a0p4,a1p5,a2p6,a3p7, a5m1,a7m3,a0m4,a6m2
       real, dimension(lot) :: a0p4p2p6, a1p5p3p7, a7m3p5m1, a7m3m5m1
       integer :: i
-      character(len=200) :: tmp
       
       la = n / 8
       z  = 1.0 / n
       zsin45 = z * sqrt(0.5)
 
-      ! XW (2017/4/8): Parallel HERE!!!  but very bad performance
-      !$--OMP-- parallel do private(i0,i1,i2,i3,i4,i5,i6,i7, &
-      !$--OMP--                     a0p4,a1p5,a2p6,a3p7, a5m1,a7m3,a0m4,a6m2, &
-      !$--OMP--                     a0p4p2p6, a1p5p3p7, a7m3p5m1, a7m3m5m1)
-      do i=1, la
+      do i=1,la
          i0 = i
          i1 = i0 + la
          i2 = i1 + la
@@ -439,8 +434,8 @@ pure  subroutine dfft8(a,c,n,lot)
          c(i5,:) = a0m4 - a7m3m5m1
          c(i2,:) = a7m3p5m1 + a6m2
          c(i6,:) = a7m3p5m1 - a6m2
-         
-         !write(tmp,"(14f8.2)") c(i0),c(i2),c(i4),c(i6),   c(i1),c(i3),c(i5),c(i7),  a0p4p2p6, a1p5p3p7, a7m3p5m1, a7m3m5m1, a0m4, a6m2
+
+         !write(*,"(14f8.2)") c(i0),c(i2),c(i4),c(i6),   c(i1),c(i3),c(i5),c(i7),  a0p4p2p6, a1p5p3p7, a7m3p5m1, a7m3m5m1, a0m4, a6m2
       enddo
       !$--OMP-- end parallel do
       end subroutine dfft8
@@ -681,7 +676,7 @@ pure  subroutine ifft4(c,trigs,n,lot,la)
 !     SUBROUTINE IFFT8
 !     ================
 
-pure  subroutine ifft8(a,c,n,lot)
+ subroutine ifft8(a,c,n,lot)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(in)  :: a
@@ -692,12 +687,14 @@ pure  subroutine ifft8(a,c,n,lot)
       integer :: la, i0,i1,i2,i3,i4,i5,i6,i7
       real, dimension(lot) :: a0p7,a0m7, a1p5,a1m5, a2p6,a2m6
       real, dimension(lot) :: a0p7p3,a0p7m3, a0m7p4,a0m7m4, a1m5p2p6,a1m5m2p6
-      character(len=200) :: tmp
+      character(len=100)  :: tmp
       integer :: i
 
       la = n / 8
+print *, n, la
+print *, "--- n --- la(=n/8) ---"
+      do i = 1, la
 
-      do i=1, la
          i0 = i
          i1 = i0 + la
          i2 = i1 + la
@@ -706,7 +703,7 @@ pure  subroutine ifft8(a,c,n,lot)
          i5 = i4 + la
          i6 = i5 + la
          i7 = i6 + la
-
+print "(9i10)", i, i0, i1, i2, i3, i4, i5, i6, i7
          a0p7 = a(i0,:) + a(i7,:)
          a0m7 = a(i0,:) - a(i7,:)
          a1p5 = a(i1,:) + a(i5,:)
@@ -714,22 +711,28 @@ pure  subroutine ifft8(a,c,n,lot)
          a2p6 = a(i2,:) + a(i6,:)
          a2m6 = a(i2,:) - a(i6,:)
 
+!print "(6f10.2)", a0p7, a0m7, a1p5, a1m5, a2p6, a2m6
+
          a0p7p3   = a0p7 + a(i3,:)
          a0p7m3   = a0p7 - a(i3,:)
          a0m7p4   = 2.0 * (a0m7 + a(i4,:))
          a0m7m4   = 2.0 * (a0m7 - a(i4,:))
-         a1m5p2p6 = SQRT2 * (a1m5 + a2p6)
-         a1m5m2p6 = SQRT2 * (a1m5 - a2p6)
+         a1m5p2p6 = 1.414213562373 * (a1m5 + a2p6)
+         a1m5m2p6 = 1.414213562373 * (a1m5 - a2p6)
 
          c(i0,:)  = 2.0 * (a0p7p3 + a1p5)
          c(i2,:)  = 2.0 * (a0p7m3 - a2m6)
          c(i4,:)  = 2.0 * (a0p7p3 - a1p5)
          c(i6,:)  = 2.0 * (a0p7m3 + a2m6)
 
-         c(i1,:)  = a0m7m4 + a1m5m2p6
-         c(i3,:)  = a0m7p4 - a1m5p2p6
-         c(i5,:)  = a0m7m4 - a1m5m2p6
-         c(i7,:)  = a0m7p4 + a1m5p2p6
+         c(i1,:)  = (a0m7m4 + a1m5m2p6)
+         c(i3,:)  = (a0m7p4 - a1m5p2p6)
+         c(i5,:)  = (a0m7m4 - a1m5m2p6)
+         c(i7,:)  = (a0m7p4 + a1m5p2p6)
+
+         !tmp = 1.0*a0m7m4+0.5*a0m7p4-2.0*a1m5m2p6+2.1*a1m5p2p6
+         !write(tmp,"(12f8.2)") c(i0),c(i2),c(i4),c(i6),   c(i1),c(i3),c(i5),c(i7),    a0m7m4, a0m7p4, a1m5m2p6, a1m5p2p6
+         !print "(8f8.2)", c(i0),c(i2),c(i4),c(i6),   c(i1),c(i3),c(i5),c(i7)!,    a0m7m4!, a0m7p4, a1m5m2p6, a1m5p2p6
       end do
 
       end subroutine ifft8

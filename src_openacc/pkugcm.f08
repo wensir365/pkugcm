@@ -388,7 +388,7 @@ real, allocatable :: xlt(:,:)         ! matrix LT (tau)
 
 !integer :: myworld = 0                   ! MPI variable
 !integer :: mpinfo  = 0                   ! MPI variable
-!integer :: mypid   = 0                   ! My Process Id
+integer :: mypid   = 0                   ! My Process Id
 !character(80), allocatable :: ympname(:) ! Processor name
 
 real(kind=8)    :: tmstart = 0.0         ! CPU time at start
@@ -482,6 +482,7 @@ use pumamod
 ! Let's Rock Here !
 ! "pass" implies 经过完整检查和简化，并用implicit none最后封装
 ! 直接移除开始阶段的mpstart & setfilenames 和最后阶段的mpstop
+
 
 open(nud,file=puma_diag)   ! pass (simple)  ! opendiag简化而来
 call read_resolution       ! pass (simple)  ! 从命令行读取2个参数: NLAT, NLEV
@@ -805,8 +806,10 @@ endif
       write(40) zsig
    endif
 
-   !XW(2017/4/12): init new outputs
-   if (noutput==2) call io_open_output
+   if (noutput == 2) then
+      call io_open_output
+   end if
+
 !endif
 end subroutine prolog
 
@@ -839,6 +842,7 @@ use pumamod
 ! ***************************
 ! * short initial timesteps *
 ! ***************************
+
 
 ikits = nkits
 do jkits = 1 , ikits
@@ -878,7 +882,9 @@ do jstep = 1 , nrun
    call spectral
    if (mod(nstep,nafter)==0 .and. noutput==1) call outgp
 
+   !***********************
    ! XW: pku output format
+   !***********************
    if (mod(nstep,nafter)==0 .and. noutput==2) call io_write_output
 enddo
 
@@ -895,7 +901,7 @@ end subroutine master
 
       real    :: tmrun, zspy, zypd
 
-      close(40)   ! close "_output" file
+      close(40)   ! close default "_output" file
 
       ! XW(2017/4/12): close new output files
       if (noutput==2) call io_close_output 
@@ -1102,11 +1108,12 @@ end subroutine master
       call read_surf(122,sr2,NLEV,iread4)
       call read_vargp(123,NLEV,iread123)
       !if (mypid == NROOT .and. iread123 == 0) then
+      if (iread123 == 0) then
          if (nhelsua > 1) then
             write(nud,*) "*** ERROR no *_surf_0123.sra file for Held&Suarez"
             stop
          endif
-      !endif
+      endif
    
       if (ndiagp > 0) then  
          call read_vargp(121,NLEV,iread121)
@@ -1149,6 +1156,7 @@ end subroutine master
       !endif
 
 !     Add initial noise if wanted
+
 
       !if (mypid == NROOT) then
          call printprofile
@@ -2198,18 +2206,18 @@ end subroutine master
       real :: zpp(NHOR,klev)
 
       kread = 0
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          if (NLAT < 1000) then
          write(yfilename,'("N",I3.3,"_surf_",I4.4,".sra")') NLAT,kcode
          else
          write(yfilename,'("N",I4.4,"_surf_",I4.4,".sra")') NLAT,kcode
          endif
          inquire(file=yfilename,exist=lexist)
-      endif
+      !endif
       !call mpbcl(lexist)
       if (.not. lexist) return
 
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          open(65,file=yfilename,form='formatted')
          write(nud,*) 'Reading file <',trim(yfilename),'>'
          do jlev = 1 , klev
@@ -2223,7 +2231,7 @@ end subroutine master
             zgp(:,:) = log(zgp(:,:)) + zscale
          endif
          call reg2alt(zgp,klev)
-      endif ! (mypid == NROOT)
+      !endif ! (mypid == NROOT)
 
       !call mpscgp(zgp,zpp,klev)
       zpp = zgp
@@ -2251,23 +2259,23 @@ end subroutine master
       real :: zgp(NUGP,klev)
 
       kread = 0
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          if (NLAT < 1000) then
          write(yfilename,'("N",I3.3,"_surf_",I4.4,".sra")') NLAT,kcode
          else
          write(yfilename,'("N",I4.4,"_surf_",I4.4,".sra")') NLAT,kcode
          endif
          inquire(file=yfilename,exist=lexist)
-      endif
+      !endif
       !call mpbcl(lexist)
       if (.not. lexist) then
-         if (mypid == NROOT) then
+         !if (mypid == NROOT) then
             write(nud,*) 'File <',trim(yfilename),'> not found'
-         endif
+         !endif
          return
       endif
 
-      if (mypid == NROOT) then
+      !if (mypid == NROOT) then
          open(65,file=yfilename,form='formatted')
          write(nud,*) 'Reading file <',trim(yfilename),'>'
          do jlev = 1 , klev
@@ -2276,84 +2284,84 @@ end subroutine master
          enddo
          close(65)
          call reg2alt(zgp,klev)
-      endif ! (mypid == NROOT)
+      !endif ! (mypid == NROOT)
 
       select case(kcode)
          case(121)
             !--- non-dimensionalize and shift const radiative rest. temp.
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                zgp(:,:) = zgp(:,:)/ct
                do jhor = 1,nugp
                   zgp(jhor,:) = zgp(jhor,:) - t0(:)
                enddo
-            endif
+            !endif
             allocate(gr1(nhor,klev))
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                write(nud,*) 'Field gr1 allocated'
-            endif
+            !endif
             !call mpscgp(zgp,gr1,klev)
             gr1 = zgp
 
          case(122)
             !--- non-dimensionalize variable. radiative rest. temp.
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                zgp(:,:) = zgp(:,:)/ct
-            endif
+            !endif
             allocate(gr2(nhor,klev))
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                write(nud,*) 'Field gr2 allocated'
-            endif
+            !endif
             !call mpscgp(zgp,gr2,klev)
             gr2 = zgp
 
          case(123)
             !--- non-dimensionalize radiative relaxation time scale
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                zgp(:,:) = zgp(:,:)/ww_scale
-            endif
+            !endif
             allocate(gtdamp(nhor,klev))
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                write(nud,*) 'Field gtdamp allocated'
-            endif
+            !endif
             !call mpscgp(zgp,gtdamp,klev)
             gtdamp = zgp
 
          case(124)
             !--- non-dimensionalize and shift const. convective rest. temp.
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                zgp(:,:) = zgp(:,:)/ct
                do jhor = 1,nugp
                   zgp(jhor,:) = zgp(jhor,:) - t0(:)
                enddo
-            endif
+            !endif
             allocate(gr1c(nhor,klev))
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                write(nud,*) 'Field gr1c allocated'
-            endif
+            !endif
             !call mpscgp(zgp,gr1c,klev)
             gr1c = zgp
 
          case(125)
             !--- non-dimensionalize variable. convective rest. temp.
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                zgp(:,:) = zgp(:,:)/ct
-            endif
+            !endif
             allocate(gr2c(nhor,klev))
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                write(nud,*) 'Field gr2c allocated'
-            endif
+            !endif
             !call mpscgp(zgp,gr2c,klev)
             gr2c = zgp
 
          case(126)
             !--- non-dimensionalize convective relaxation time scale
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                zgp(:,:) = zgp(:,:)/ww_scale
-            endif
+            !endif
             allocate(gtdampc(nhor,klev))
-            if (mypid == NROOT) then
+            !if (mypid == NROOT) then
                write(nud,*) 'Field gtdampc allocated'
-            endif
+            !endif
             !call mpscgp(zgp,gtdampc,klev)
             gtdampc = zgp
 
@@ -2809,7 +2817,7 @@ end subroutine master
       !call mpgagp(zf,pf,1)
       zf = pf
 
-      if (mypid == NROOT) then 
+      !if (mypid == NROOT) then 
          call alt2reg(zf,1)
          call ntomin(nstep,nmin,nhour,nday,nmonth,nyear)
    
@@ -2824,7 +2832,7 @@ end subroutine master
 
          write(kunit) ihead
          write(kunit) zf
-      endif
+      !endif
 
       return
       end subroutine writegp
@@ -3110,7 +3118,7 @@ end subroutine master
          zgpp(:) = exp(gp)                ! LnPs -> Ps
          !call mpgagp(zgp,zgpp,1)         ! zgp = Ps (full grid)
          zgp = reshape(zgpp,(/NLON,NLAT/))! zgp = Ps (full grid)
-	 !XW(Mar/25/2017) to remove GUI:
+      !XW(Mar/25/2017) to remove GUI:
          !if (ngui > 0) then
          !   call guips(zgp,psmean)        
          !   call guigv("GU" // char(0),gu)
@@ -3129,7 +3137,7 @@ end subroutine master
             call altcs(csu)
             call altcs(csv)
             call altcs(cst)
-	    !XW(Mar/25/2017) to remove GUI:
+      !XW(Mar/25/2017) to remove GUI:
             !if (ngui > 0) then
             !   zcs(:,:) = csu(:,:)
             !   call guiput("CSU"  // char(0) ,zcs ,NLAT,NLEV,1)

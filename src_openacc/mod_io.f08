@@ -95,8 +95,8 @@ subroutine io_write_output
       call sp2fc(st(:,jlev),x3d(:,:,jlev))
       call fc2gp(x3d(:,:,jlev),NLON,NLAT)
       x3d(:,:,jlev) = x3d(:,:,jlev) * ct + t0(jlev)*ct   ! Temp
-      y3d(:,:,jlev) = 
    end do
+
    call alt2reg(x3d,NLEV)
 
    write(fid(6)) x3d
