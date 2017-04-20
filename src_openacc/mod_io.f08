@@ -9,19 +9,18 @@ module io
 
    implicit none
 
-   integer, parameter :: Nvar    = 8
+   integer, parameter :: Nvar    = 7
 
-   integer, dimension(Nvar)           :: lev = (/ 1   , 10  , 10  , 10  , 10  , 10  ,  10 ,  11 /)
-   integer, dimension(Nvar)           :: fid = (/ 901 , 902 , 903 , 904 , 905 , 906 , 907 , 908 /)
-   character(len=3),  dimension(Nvar) :: vid = (/"ps ","u  ","v  ","div","vor","t  ","z  ","zh "/)
+   integer, dimension(Nvar)           :: lev = (/ 1   , 10  , 10  , 10  , 10  , 10  ,  10  /)
+   integer, dimension(Nvar)           :: fid = (/ 901 , 902 , 903 , 904 , 905 , 906 , 907  /)
+   character(len=3),  dimension(Nvar) :: vid = (/"ps ","u  ","v  ","div","vor","t  ","z  " /)
    character(len=30), dimension(Nvar) :: desc= (/"Surface Pressure (mb)         ", &
                                                  "U Wind (m/s)                  ", &
                                                  "V Wind (m/s)                  ", &
                                                  "Div (m/s^2)                   ", &
                                                  "Vor (m/s^2)                   ", &
                                                  "Temperature (K)               ", &
-                                                 "Geopotential (m2/s2)          ", &
-                                                 "Geopotential at half (m2/s2)  " /)
+                                                 "Geopotential Height (gpm)     " /)
    integer(kind=8) :: writecount
 
 end module io
@@ -38,12 +37,10 @@ subroutine io_write_output
 
    ! local
    real, dimension(NLON,NLAT,NLEV)  :: x3d, y3d
-   real, dimension(NLON,NLAT,NLEV+1):: x3dh,y3dh
+   real, dimension(NLON,NLAT,0:NLEV):: x3dh,y3dh
    real, dimension(NLON,NLAT)       :: x2d, y2d
    real, dimension(NLAT)            :: scal
    real                             :: offs
-   real, dimension(NLEV+1)          :: sigmahalf
-   real, dimension(NLEV)            :: alphar
    integer :: jlon,jlat,jlev
 
 
@@ -53,6 +50,7 @@ subroutine io_write_output
    call fc2gp(x2d,NLON,NLAT)
    call alt2reg(x2d,1)
    x2d = exp(x2d)*psurf    ! psurf=1011mb
+   x2d = x2d / 100.0       ! Pa to hPa/mb
    
    write(fid(1)) x2d
 
@@ -107,19 +105,17 @@ subroutine io_write_output
    write(fid(6)) x3d
 
    !--- Geopotential at half ---
-   sigmahalf(1)         = 0.0
-   sigmahalf(2:NLEV+1)  = sigmh
-   alphar(1:NLEV)       = 1.0-sigmahalf(1:NLEV)/dsigma(1:NLEV)*    &
-                          log(sigmahalf(2:NLEV+1)/sigmahalf(1:NLEV)) ! Note: 最顶层sigmahalf==0 在log中做分母会被除零
-
-   x3dh(:,:,NLEV+1) = 0.0       ! 这是地表位势 以后需要求精
-   do jlev = NLEV, 1, -1
-      x3dh(:,:,jlev) = x3dh(:,:,jlev+1)+dsigma(jlev)*x3d(:,:,jlev)   ! zh
-      y3d (:,:,jlev) = x3dh(:,:,jlev+1)+alphar(jlev)*x3d(:,:,jlev)   ! z
+   x3dh(:,:,NLEV) = 0.0       ! 这是地表位势 以后需要求精
+   x3d = x3d * gascon
+   do jlev = NLEV-1, 1, -1
+      y3d (:,:,jlev) = y3d(:,:,jlev+1)+x3d(:,:,jlev+1)*log(sigmh(jlev+1)/sigmh(jlev))
    end do
 
-   write(fid(7)) y3d
-   write(fid(8)) x3dh
+   x3d(:,:,1)        = y3d(:,:,1)+x3d(:,:,1)*log(sigmh(1)/sigma(1))
+   x3d(:,:,2:NLEV)   = ( y3d(:,:,1:NLEV-1) + y3d(:,:,2:NLEV) ) / 2.0
+   x3d               = x3d / ga  ! geopotential (m2/s2) to height (gpm)
+
+   write(fid(7)) x3d
 
    !--- count ---
    writecount = writecount + 1

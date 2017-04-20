@@ -20,5 +20,6 @@
  TGR     =   288.0
 
  !nhelsua     = 1      ! HS94 experiment
+ !DTNS    =   0.0
 
  /end
