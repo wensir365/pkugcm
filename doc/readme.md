@@ -1,5 +1,9 @@
 # Change Log
 
+## 2017-Apr-15~20: Extract a clean OpenACC version
+
+Extract a clean version (src_openacc) for OpenACC optimization later, during Yan-Qi Lake journey. Moreover, fix a bug in fft module and make it work with PGI compiler (both serial and openmp), so that we are ready for OpenACC march now!
+
 ## 2017-Apr-14: Add namelist option for GrADS outputs
 
 Add an option "outformat" in puma_namelist to control if enable outputs in GrADS format. This feature, output in GrADS format, is just working for serial and OpenMP mode, but MPI mode. Still in debuging.
