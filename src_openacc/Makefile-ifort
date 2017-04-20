@@ -6,19 +6,18 @@
 #=====================
 # GNU gfortran
 #F90    = gfortran
-#FLAGS  = -Ofast -fopenmp#-Wall #-pg 
-#OTHERS = -ffree-line-length-none
+#FLAGS  = -Ofast #-Wall #-pg 
+#OTHERS = -fopenmp -ffree-line-length-none
 #USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
 
 # PGI pgfortran
-F90    = pgfortran
-FLAGS  = -fast
-#OTHERS = -mp
+#F90    = pgfortran
+#FLAGS  = -fast
 
 # Intel ifort
-#F90    = ifort
-#FLAGS  = -fast
-#OTHERS = -parallel
+F90    = ifort
+FLAGS  = -fast
+OTHERS = -free -Tf #-parallel
 #OTHERS = -qopenmp
 #USELESS= -parallel
 

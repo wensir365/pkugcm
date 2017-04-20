@@ -1,6 +1,6 @@
 #!/bin/tcsh
 
-setenv OMP_NUM_THREADS 2
+setenv OMP_NUM_THREADS 4
 
 date
 

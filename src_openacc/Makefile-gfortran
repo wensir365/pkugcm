@@ -33,9 +33,9 @@ OTHERS = -fopenmp -ffree-line-length-none
 OBJ = pkugcm.o mod_fft.o mod_legsym.o mod_restart.o mod_io.o
 
 %.o : %.f08
-	${F90} $(FLAGS) $(OTHERS) -c $<
+	${F90} -c $(FLAGS) $(OTHERS) $<
 
-puma.x:	$(OBJ)
+pkugcm.x:	$(OBJ)
 	${F90} $(FLAGS) -o pkugcm.x $(OBJ)
 
 pkugcm.o:      pkugcm.f08
