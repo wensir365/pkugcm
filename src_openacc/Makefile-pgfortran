@@ -12,7 +12,7 @@
 
 # PGI pgfortran
 F90    = pgfortran
-FLAGS  = -fast
+FLAGS  = -fast -mp
 #OTHERS = -mp
 
 # Intel ifort

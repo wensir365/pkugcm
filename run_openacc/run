@@ -27,7 +27,7 @@ set ncpath  = netcdf
 rm -rf $ncpath
 mkdir $ncpath
 
-foreach var (ps u v div vor t)
+foreach var (ps u v t z)
    set fctl = $outpath/output_$var.ctl
    set fbin = $outpath/output_$var.bin
    set fnc  = $ncpath/output_$var.nc
