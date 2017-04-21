@@ -1,6 +1,6 @@
 #!/bin/tcsh
 
-setenv OMP_NUM_THREADS 2
+#setenv OMP_NUM_THREADS 2
 setenv CONVERT_NC 1           # 1 to convert netcdf; 0 off
 
 date

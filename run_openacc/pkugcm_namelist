@@ -3,7 +3,7 @@
  NOUTPUT =     2        ! 0=no output; 1=puma format; 2=pku format
  TAC     =   360.0000
  PAC     =     0.0000
- NYEARS  =     1
+ NYEARS  =     2
  NMONTHS =     0
  KICK    =     1
  MPSTEP  =     0
@@ -13,7 +13,7 @@
  NEWSR   =     0
  NWPD    =     1
  DTEP    =    60.0
- DTNS    =   -70.0
+ !DTNS    =   -70.0
  DTROP   = 12000.0
  DTTRP   =     2.0
  ROTSPD  =     1.0
@@ -21,5 +21,5 @@
 
  !nhelsua     = 1      ! HS94 experiment
  !DTNS    =   0.0
-
+ !nsponge = 1
  /end

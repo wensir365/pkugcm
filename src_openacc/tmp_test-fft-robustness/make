@@ -1,7 +1,0 @@
-rm -f *.mod *.o
-
-pgfortran -c mod_fft.f90
-pgfortran -c main.f90
-pgfortran -o run *.o
-./run
-

@@ -29,6 +29,15 @@ integer, parameter :: PKUGCM = 2              ! Peking Univ GCM
 integer        :: model      = PKUGCM
 character(80)  :: modelver   = "prototype (Apr/15/2017)"
 
+
+! +++++++++++++++++++++++
+! Xinyu added global var
+! +++++++++++++++++++++++
+!integer (kind=8) :: Nbinary=0    ! number of new outputs in GrADS format
+!integer          :: outformat=1  ! output format (0=default; 1=default+GrADS)
+                                 ! see another key switch: "noutput"
+logical :: mloop = .FALSE.       ! check if in main loop (T), or in startup (F)
+
 !**************************************************************!
 ! The number of processes for processing on parallel machines  !
 ! NLAT/2 must be dividable by <npro>. npro can be set by the   !
@@ -216,13 +225,6 @@ integer  :: ndheat  = 0 ! energy recycling (on/off 1/0)
 
 integer  :: nradcv = 0  ! use two restoration fields
 
-
-! +++++++++++++++++++++++
-! Xinyu added global var
-! +++++++++++++++++++++++
-!integer (kind=8) :: Nbinary=0    ! number of new outputs in GrADS format
-!integer          :: outformat=1  ! output format (0=default; 1=default+GrADS)
-                                 ! see another key switch: "noutput"
 
 ! ***********************
 ! * Global Real Scalars *
@@ -718,6 +720,10 @@ integer  :: jlat              ! loop var
    call readnl
    !call ppp_interface  完全不必要
    call initpm
+
+print *, "LSELECT =", lselect       ! check if zonal-filter work after calling initpm
+print *, "LSPECSEL = ", lspecsel    ! check if sp-truncator work after calling initpm
+
    call initsi
    call altlat(csq,NLAT) ! csq -> alternating grid
    !XW(Mar/25/2017) to remove GUI: if (ngui > 0) call guistart
@@ -860,6 +866,10 @@ call makebm
 
 nstep1 = nstep ! remember 1.st timestep
 
+! Xinyu added, for explicitly tell compiler
+! the leapfrog block in subroutine spectral can be paralled
+mloop = .TRUE.
+
 do jstep = 1 , nrun
 
    nstep = nstep + 1
@@ -870,9 +880,9 @@ do jstep = 1 , nrun
 
    call gridpoint
    !if (mypid == NROOT) then
-      if (mod(nstep,nafter)==0 .and. noutput==1) call outsp
-      if (mod(nstep,ndiag )==0) call diag
-      if (ncu > 0) call checkunit
+      !if (mod(nstep,nafter)==0 .and. noutput==1) call outsp
+      !if (mod(nstep,ndiag )==0) call diag
+      !if (ncu > 0) call checkunit
    !endif
 
 !  ******************************
@@ -880,7 +890,7 @@ do jstep = 1 , nrun
 !  ******************************
 
    call spectral
-   if (mod(nstep,nafter)==0 .and. noutput==1) call outgp
+   !if (mod(nstep,nafter)==0 .and. noutput==1) call outgp
 
    !***********************
    ! XW: pku output format
@@ -2954,14 +2964,16 @@ end subroutine master
 !     ====================
 !     SUBROUTINE GRIDPOINT
 !     Key callings:
-!     - calcgp              : 超级密集计算
-!     - mktend (mod_legsym) : Compute Nonlinear terms
-!     Others:
+!     - calcgp              : 超级密集计算               纯数组计算 没有调用任何其它函数或子程序
+!     - mktend (mod_legsym) : Compute Nonlinear terms    纯数组计算 没有调用任何其它函数或子程序
+!
+!     Others: <--- All neglected for OpenACC testing
 !     - filter_zonal_waves  : 纬向滤波
 !     - stepruido           : 运行中增加随机性
 !       gasdev                stepruido调用了这个Gauss随机数发生器
 !     - altcs               : 诊断cs切片时转换alt grid
-!     MPI: mpsumsc; mpgagp; mpsum; mpgacs
+!
+!     MPI: mpsumsc; mpgagp; mpsum; mpgacs <--- All removed
 !     ====================
 
       subroutine gridpoint
@@ -3008,28 +3020,33 @@ end subroutine master
       !$OMP end sections
 
       !$OMP single
-      if (lselect) then
-         call filter_zonal_waves(gp)
-         call filter_zonal_waves(gpj)
-         do jlev = 1 , NLEV
-            call filter_zonal_waves(gu(:,jlev))
-            call filter_zonal_waves(gv(:,jlev))
-            call filter_zonal_waves(gd(:,jlev))
-            call filter_zonal_waves(gt(:,jlev))
-            call filter_zonal_waves(gz(:,jlev))
-         enddo
-      endif
 
-      if (mod(nstep,ndiag) == 0) then
-        do jlev = 1 , NLEV
-          do jlat = 1 , NLPP
-            sec = cv / sqrt(csq(jlat))
-            csu(jlat,jlev) = gu(1+(jlat-1)*NLON,jlev) * sec
-            csv(jlat,jlev) = gv(1+(jlat-1)*NLON,jlev) * sec
-            cst(jlat,jlev) =(gt(1+(jlat-1)*NLON,jlev) + t0(jlev))*ct-273.16
-          enddo
-        enddo
-      endif
+      ! 纬向FFT滤波
+      !if (lselect) then
+      !   call filter_zonal_waves(gp)
+      !   call filter_zonal_waves(gpj)
+      !   do jlev = 1 , NLEV
+      !      call filter_zonal_waves(gu(:,jlev))
+      !      call filter_zonal_waves(gv(:,jlev))
+      !      call filter_zonal_waves(gd(:,jlev))
+      !      call filter_zonal_waves(gt(:,jlev))
+      !      call filter_zonal_waves(gz(:,jlev))
+      !   enddo
+      !endif
+
+      ! 可暂时关闭diag信息
+      ! 取cross-section: gu,gv,gt每lev每lat第一个经度
+      !if (mod(nstep,ndiag) == 0) then
+      !  do jlev = 1 , NLEV
+      !    do jlat = 1 , NLPP
+      !      sec = cv / sqrt(csq(jlat))
+      !      csu(jlat,jlev) = gu(1+(jlat-1)*NLON,jlev) * sec
+      !      csv(jlat,jlev) = gv(1+(jlat-1)*NLON,jlev) * sec
+      !      cst(jlat,jlev) =(gt(1+(jlat-1)*NLON,jlev) + t0(jlev))*ct-273.16
+      !    enddo
+      !  enddo
+      !endif
+
       !$OMP end single
 
       !$OMP do collapse(2)
@@ -3086,17 +3103,18 @@ end subroutine master
       !$OMP single
       call fc2sp(gvpp,spf)
 
-      if (lselect) then
-         call filter_zonal_waves(gvpp)
-         do jlev = 1 , NLEV
-            call filter_zonal_waves(gtn(:,:,jlev))
-            call filter_zonal_waves(gut(:,jlev))
-            call filter_zonal_waves(gvt(:,jlev))
-            call filter_zonal_waves(gfv(:,jlev))
-            call filter_zonal_waves(gfu(:,jlev))
-            call filter_zonal_waves(gke(:,jlev))
-         enddo
-      endif
+      ! 纬向滤波
+      !if (lselect) then
+      !   call filter_zonal_waves(gvpp)
+      !   do jlev = 1 , NLEV
+      !      call filter_zonal_waves(gtn(:,:,jlev))
+      !      call filter_zonal_waves(gut(:,jlev))
+      !      call filter_zonal_waves(gvt(:,jlev))
+      !      call filter_zonal_waves(gfv(:,jlev))
+      !      call filter_zonal_waves(gfu(:,jlev))
+      !      call filter_zonal_waves(gke(:,jlev))
+      !   enddo
+      !endif
       !$OMP end single
 
       !$OMP do
@@ -3107,49 +3125,53 @@ end subroutine master
       !$OMP end do
       !$OMP end parallel
 
-      if (nruido > 0) call stepruido      ! 在运行中是否还要加随机扰动? 这里计算ruido数组
+      ! 实际上未加 暂时注释掉
+      !if (nruido > 0) call stepruido      ! 在运行中是否还要加随机扰动? 这里计算ruido数组
+
       spt   = spf    !call mpsumsc(spf,spt,1)
       stt   = stf    !call mpsumsc(stf,stt,NLEV)
       sdt   = sdf    !call mpsumsc(sdf,sdt,NLEV)
       szt   = szf    !call mpsumsc(szf,szt,NLEV)
 
-      if (mod(nstep,ndiag) == 0) then
-         call fc2gp(gp,NLON,NLPP)
-         zgpp(:) = exp(gp)                ! LnPs -> Ps
-         !call mpgagp(zgp,zgpp,1)         ! zgp = Ps (full grid)
-         zgp = reshape(zgpp,(/NLON,NLAT/))! zgp = Ps (full grid)
-      !XW(Mar/25/2017) to remove GUI:
-         !if (ngui > 0) then
-         !   call guips(zgp,psmean)        
-         !   call guigv("GU" // char(0),gu)
-         !   call guigv("GV" // char(0),gv)
-         !   call guigt(gt)
-         !endif
-         zgpp(:) =  zgpp(:) - 1.0         ! Mean(LnPs) = 0  <-> Mean(Ps) = 1
-         call gp2fc(zgpp,NLON,NLPP)
-         call fc2sp(zgpp,span)
-
-         !call mpsum(span,1)              ! span = Ps spectral
-         !call mpgacs(csu)
-         !call mpgacs(csv)
-         !call mpgacs(cst)
-         !if (mypid == NROOT) then
-            call altcs(csu)
-            call altcs(csv)
-            call altcs(cst)
-      !XW(Mar/25/2017) to remove GUI:
-            !if (ngui > 0) then
-            !   zcs(:,:) = csu(:,:)
-            !   call guiput("CSU"  // char(0) ,zcs ,NLAT,NLEV,1)
-            !   zcs(:,:) = csv(:,:)
-            !   call guiput("CSV"  // char(0) ,zcs ,NLAT,NLEV,1)
-            !   zcs(:,:) = cst(:,:)
-            !   call guiput("CST"  // char(0) ,zcs ,NLAT,NLEV,1)
-            !   zsp(:) = span(1:NRSP)
-            !   call guiput("SPAN" // char(0) ,zsp ,NCSP,-NTP1,1)
-            !endif
-         !endif
-      endif
+! 为OpenACC测试暂时关闭 打开第一列叹号就是原来的优化带注释
+!
+!      if (mod(nstep,ndiag) == 0) then
+!         call fc2gp(gp,NLON,NLPP)
+!         zgpp(:) = exp(gp)                ! LnPs -> Ps
+!         !call mpgagp(zgp,zgpp,1)         ! zgp = Ps (full grid)
+!         zgp = reshape(zgpp,(/NLON,NLAT/))! zgp = Ps (full grid)
+!      !XW(Mar/25/2017) to remove GUI:
+!         !if (ngui > 0) then
+!         !   call guips(zgp,psmean)        
+!         !   call guigv("GU" // char(0),gu)
+!         !   call guigv("GV" // char(0),gv)
+!         !   call guigt(gt)
+!         !endif
+!         zgpp(:) =  zgpp(:) - 1.0         ! Mean(LnPs) = 0  <-> Mean(Ps) = 1
+!         call gp2fc(zgpp,NLON,NLPP)
+!         call fc2sp(zgpp,span)
+!
+!         !call mpsum(span,1)              ! span = Ps spectral
+!         !call mpgacs(csu)
+!         !call mpgacs(csv)
+!         !call mpgacs(cst)
+!         !if (mypid == NROOT) then
+!            call altcs(csu)
+!            call altcs(csv)
+!            call altcs(cst)
+!      !XW(Mar/25/2017) to remove GUI:
+!            !if (ngui > 0) then
+!            !   zcs(:,:) = csu(:,:)
+!            !   call guiput("CSU"  // char(0) ,zcs ,NLAT,NLEV,1)
+!            !   zcs(:,:) = csv(:,:)
+!            !   call guiput("CSV"  // char(0) ,zcs ,NLAT,NLEV,1)
+!            !   zcs(:,:) = cst(:,:)
+!            !   call guiput("CST"  // char(0) ,zcs ,NLAT,NLEV,1)
+!            !   zsp(:) = span(1:NRSP)
+!            !   call guiput("SPAN" // char(0) ,zsp ,NCSP,-NTP1,1)
+!            !endif
+!         !endif
+!      endif
       return
       end subroutine gridpoint
 
@@ -3158,6 +3180,7 @@ end subroutine master
 !     SUBROUTINE CALCGP
 !     高密度计算模块
 !     深挖scalable computing
+!     纯数组计算 没有调用任何其它函数和子程序
 !     =================
       subroutine calcgp(gtn,gpm,gvp)
       use pumamod
@@ -3224,6 +3247,8 @@ end subroutine master
       real gvd(NHOR,NLEM)
 
       integer :: jlev,jlej
+
+!$acc kernels
 
 !     1.
 !     1.1 zvgpg: (u,v) * grad(ln(ps))
@@ -3382,7 +3407,8 @@ end subroutine master
 
       if (nruido > 0) gtn(:,:) = gtn(:,:) + ruidop(:,:)
 
-      return
+!$acc end kernels
+
       end subroutine calcgp
 
 
@@ -3477,10 +3503,12 @@ end subroutine master
       real     :: zampl, zcp, zsum3, zt, ztp, zztm
       integer  :: jhor, jsp, jn, jlon, jlat, jlev
 
+!$acc kernels
 
 !     0. Special code for experiments with mode filtering
 
-      if (lspecsel) call filter_spectral_modes
+      ! 暂时关闭 for OpenACC testing
+      !if (lspecsel) call filter_spectral_modes
 
 !     1. Initialize local arrays
 
@@ -3491,20 +3519,25 @@ end subroutine master
 !
 !     allocate diagnostic arrays if needed
 !
-      if(nenergy > 0 .or. nentropy > 0 .or. ndheat > 0) then
-       allocate(zstte(NSPP,NLEV,3))
-      endif
-      if(ndheat > 0) then
-       allocate(zszte(NSPP,NLEV,2))
-       allocate(zsdte(NSPP,NLEV,2))
-      endif
+
+      ! 暂时关闭 for OpenACC testing
+      ! checked, they are ALL 0 :-)
+      !if(nenergy > 0 .or. nentropy > 0 .or. ndheat > 0) then
+      ! allocate(zstte(NSPP,NLEV,3))
+      !endif
+      !if(ndheat > 0) then
+      ! allocate(zszte(NSPP,NLEV,2))
+      ! allocate(zsdte(NSPP,NLEV,2))
+      !endif
 !
 !     allocate and compute surface pressure if needed
 !
-      if(nenergy > 0 .or. nentropy > 0 .or. ndheat > 0) then
-       allocate(zspt(NSPP))
-       allocate(zsp(NSPP))
-      endif
+      ! 暂时关闭 for OpenACC testing
+      ! checked, they are ALL 0 :-)
+      !if(nenergy > 0 .or. nentropy > 0 .or. ndheat > 0) then
+      ! allocate(zspt(NSPP))
+      ! allocate(zsp(NSPP))
+      !endif
 
 !     2. Calculate divergence on timelevel t (sdt) HS75 (17)
 !        which will replace the divergence tendency sdt
@@ -3564,13 +3597,15 @@ end subroutine master
       szp(:,:) = delt2 * szt(:,:) + szm(:,:) ! vorticity
       stp(:,:) = delt2 * stt(:,:) + stm(:,:) ! temperature
 
-      if(nenergy > 0) then
-       zspt(:)=-spt(:)
-       call mkenerdiag(stm,stt,spm,zspt,denergy(:,1))
-      endif
-      if(nentropy > 0) then
-       call mkentrodiag(stm,stt,spm,dentropy(:,1))
-      endif
+      ! 暂时关闭 for OpenACC testing
+      ! checked, they are ALL 0 :-)
+      !if(nenergy > 0) then
+      ! zspt(:)=-spt(:)
+      ! call mkenerdiag(stm,stt,spm,zspt,denergy(:,1))
+      !endif
+      !if(nentropy > 0) then
+      ! call mkentrodiag(stm,stt,spm,dentropy(:,1))
+      !endif
 
 !     6. Calculate newtonian cooling, friction and biharmonic diffusion
 !        (srp - stp) * damp = (Tr' -T') / tau R = newtonian cooling
@@ -3587,42 +3622,43 @@ end subroutine master
             zsrp(:)=srp1(:,jlev)+srp2(:,jlev)*zampl
             sdt(:,jlev) =  sdp(:,jlev) * (sak(1:NSPP) - fric(jlev))
             szt(:,jlev) =  szp(:,jlev) * (sak(1:NSPP) - fric(jlev))
-            stt(:,jlev) = (zsrp(:) - stp(:,jlev)) * damp(jlev)          &
-     &                                     + stp(:,jlev)  * sak(1:NSPP)
-            if(nenergy > 0) then
-             zstte(:,jlev,2)=(zsrp(:)-stp(:,jlev))*damp(jlev)
-             zstte(:,jlev,3)=stp(:,jlev)*sak(1:NSPP)
-            endif
-            if(ndheat > 0) then
-             zsdte(:,jlev,1) =  -sdp(:,jlev) * fric(jlev)
-             zszte(:,jlev,1) =  -szp(:,jlev) * fric(jlev)
-             zsdte(:,jlev,2) =  sdp(:,jlev) * sak(1:NSPP)
-             zszte(:,jlev,2) =  szp(:,jlev) * sak(1:NSPP)
-            endif
+            stt(:,jlev) = (zsrp(:) - stp(:,jlev)) * damp(jlev) + stp(:,jlev) * sak(1:NSPP)
+      ! 暂时关闭 for OpenACC testing
+      ! checked, nenergy = ndheat = ndiagp = 0
+      !      if(nenergy > 0) then
+      !       zstte(:,jlev,2)=(zsrp(:)-stp(:,jlev))*damp(jlev)
+      !       zstte(:,jlev,3)=stp(:,jlev)*sak(1:NSPP)
+      !      endif
+      !      if(ndheat > 0) then
+      !       zsdte(:,jlev,1) =  -sdp(:,jlev) * fric(jlev)
+      !       zszte(:,jlev,1) =  -szp(:,jlev) * fric(jlev)
+      !       zsdte(:,jlev,2) =  sdp(:,jlev) * sak(1:NSPP)
+      !       zszte(:,jlev,2) =  szp(:,jlev) * sak(1:NSPP)
+      !      endif
          enddo
-      elseif (nhelsua == 2 .or. nhelsua == 3 .or. ndiagp > 0) then
-         if (ndiagp == 0) then
-            call heatgp(zampl)  ! stt(:,:) = Newtonian cooling
-         else
-            call diagp(zampl)  ! stt(:,:) = Newtonian cooling
-         endif
-         if(nenergy > 0) then
-          zstte(:,:,2)=stt(:,:)
-         endif
-         do jlev=1,NLEV
-            sdt(:,jlev) = sdp(:,jlev) * (sak(1:NSPP) - fric(jlev))
-            szt(:,jlev) = szp(:,jlev) * (sak(1:NSPP) - fric(jlev))
-            stt(:,jlev) = stt(:,jlev) + stp(:,jlev) * sak(1:NSPP)
-            if(nenergy > 0) then
-             zstte(:,jlev,3)=stp(:,jlev)*sak(1:NSPP)
-            endif
-            if(ndheat > 0) then
-             zsdte(:,jlev,1) =  -sdp(:,jlev) * fric(jlev)
-             zszte(:,jlev,1) =  -szp(:,jlev) * fric(jlev)
-             zsdte(:,jlev,2) =  sdp(:,jlev) * sak(1:NSPP)
-             zszte(:,jlev,2) =  szp(:,jlev) * sak(1:NSPP)
-            endif
-         enddo
+      !elseif (nhelsua == 2 .or. nhelsua == 3 .or. ndiagp > 0) then     ! checked: ndiagp=0
+      !   if (ndiagp == 0) then
+      !      call heatgp(zampl)  ! stt(:,:) = Newtonian cooling
+      !   else
+      !      call diagp(zampl)  ! stt(:,:) = Newtonian cooling
+      !   endif
+      !   if(nenergy > 0) then
+      !    zstte(:,:,2)=stt(:,:)
+      !   endif
+      !   do jlev=1,NLEV
+      !      sdt(:,jlev) = sdp(:,jlev) * (sak(1:NSPP) - fric(jlev))
+      !      szt(:,jlev) = szp(:,jlev) * (sak(1:NSPP) - fric(jlev))
+      !      stt(:,jlev) = stt(:,jlev) + stp(:,jlev) * sak(1:NSPP)
+      !      if(nenergy > 0) then
+      !       zstte(:,jlev,3)=stp(:,jlev)*sak(1:NSPP)
+      !      endif
+      !      if(ndheat > 0) then
+      !       zsdte(:,jlev,1) =  -sdp(:,jlev) * fric(jlev)
+      !       zszte(:,jlev,1) =  -szp(:,jlev) * fric(jlev)
+      !       zsdte(:,jlev,2) =  sdp(:,jlev) * sak(1:NSPP)
+      !       zszte(:,jlev,2) =  szp(:,jlev) * sak(1:NSPP)
+      !      endif
+      !   enddo
       endif
 
 !        Conserve ln(ps) by forcing mode(0,0) to zero
@@ -3630,134 +3666,145 @@ end subroutine master
 !        applied to planetary vorticity
 !        Only root node processes the first NSPP modes
 
-      if(nenergy > 0) then
-       zspt(:)=0.
-       call mkenerdiag(stp,zstte(:,:,2),spp,zspt,denergy(:,2))
-       call mkenerdiag(stp,zstte(:,:,3),spp,zspt,denergy(:,3))
-      endif
-      if(nentropy > 0) then
-       call mkentrodiag(stp,zstte(:,:,2),spp,dentropy(:,2))
-       call mkentrodiag(stp,zstte(:,:,3),spp,dentropy(:,3))
-      endif
-      if(nenergy > 0 .or. nentropy > 0 .or. ndheat > 0) then
-       zsp(:)=spp(:)
-       zstte(:,:,1)=stt(:,:)
-      endif
+      ! 暂时关闭 for OpenACC testing
+      ! checked, they are ALL 0 :-)
+      !if(nenergy > 0) then
+      ! zspt(:)=0.
+      ! call mkenerdiag(stp,zstte(:,:,2),spp,zspt,denergy(:,2))
+      ! call mkenerdiag(stp,zstte(:,:,3),spp,zspt,denergy(:,3))
+      !endif
+      !if(nentropy > 0) then
+      ! call mkentrodiag(stp,zstte(:,:,2),spp,dentropy(:,2))
+      ! call mkentrodiag(stp,zstte(:,:,3),spp,dentropy(:,3))
+      !endif
+      !if(nenergy > 0 .or. nentropy > 0 .or. ndheat > 0) then
+      ! zsp(:)=spp(:)
+      ! zstte(:,:,1)=stt(:,:)
+      !endif
 
       !if (mypid == NROOT) then
          spp(1) = 0.0
          spp(2) = 0.0
          szt(3,:) = szt(3,:) + plavor * (fric(:) - sak(3))
-         if(ndheat > 0) then
-          zszte(3,:,1) = zszte(3,:,1) + plavor * fric(:)
-          zszte(3,:,2) = zszte(3,:,2) - plavor * sak(3)
-         endif
+      ! 暂时关闭 for OpenACC testing
+      ! checked, ndheat=0 :-)
+      !   if(ndheat > 0) then
+      !    zszte(3,:,1) = zszte(3,:,1) + plavor * fric(:)
+      !    zszte(3,:,2) = zszte(3,:,2) - plavor * sak(3)
+      !   endif
       !endif
 !
 !     6b) call for vertical diffusion
 !
 
-      if(dvdiff > 0.) call vdiff(stp,szp,sdp,stt,szt,sdt)
+      ! 暂时关闭 for OpenACC testing
+      ! checked, dvdiff=0.0 :-)
+      ! 但是我认为这个if语句的条件很成问题 fix it later
+      !if(dvdiff > 0.0) call vdiff(stp,szp,sdp,stt,szt,sdt)
 
 !
 !     recycle kin energy dissipation
 ! 
 
-      if(ndheat > 0) then
-       call mkdheat(zszte(:,:,1),zszte(:,:,2),     &
-                    zsdte(:,:,1),zsdte(:,:,2),zsp)
-      endif
+      ! 暂时关闭 for OpenACC testing
+      ! checked, ndheat=nenergy=nentropy=0
+      !if(ndheat > 0) then
+      ! call mkdheat(zszte(:,:,1),zszte(:,:,2),     &
+      !              zsdte(:,:,1),zsdte(:,:,2),zsp)
+      !endif
 
 
-      if(nenergy > 0 .or. nentropy > 0) then
-       zstte(:,:,1)=stt(:,:)-zstte(:,:,1)
-      endif
-      if(nenergy > 0) then
-       call mkenerdiag(stp,zstte(:,:,1),zsp,zspt,denergy(:,4))
-      endif
-      if(nentropy > 0) then
-       zstte(:,:,1)=stt(:,:)-zstte(:,:,1)
-       call mkentrodiag(stp,zstte(:,:,1),zsp,dentropy(:,4))
-      endif
-      if(nenergy > 0 .or. nentropy > 0) then
-       zstte(:,:,1)=0.
-       zspt(:)=(spp(:)-zsp(:))/delt2
-      endif
-      if(nenergy > 0) then
-       call mkenerdiag(stp,zstte(:,:,1),zsp,zspt,denergy(:,8))
-      endif
-      if(nentropy > 0) then
-       call mkentrodiag(stp,zstte(:,:,1),zsp,dentropy(:,8))
-      endif
+      !if(nenergy > 0 .or. nentropy > 0) then
+      ! zstte(:,:,1)=stt(:,:)-zstte(:,:,1)
+      !endif
+      !if(nenergy > 0) then
+      ! call mkenerdiag(stp,zstte(:,:,1),zsp,zspt,denergy(:,4))
+      !endif
+      !if(nentropy > 0) then
+      ! zstte(:,:,1)=stt(:,:)-zstte(:,:,1)
+      ! call mkentrodiag(stp,zstte(:,:,1),zsp,dentropy(:,4))
+      !endif
+      !if(nenergy > 0 .or. nentropy > 0) then
+      ! zstte(:,:,1)=0.
+      ! zspt(:)=(spp(:)-zsp(:))/delt2
+      !endif
+      !if(nenergy > 0) then
+      ! call mkenerdiag(stp,zstte(:,:,1),zsp,zspt,denergy(:,8))
+      !endif
+      !if(nentropy > 0) then
+      ! call mkentrodiag(stp,zstte(:,:,1),zsp,dentropy(:,8))
+      !endif
 
 !
 !     diagnostics of efficiency
 !
 
-      if(ndheat > 1) then
-       zcp=gascon/akap
-       allocate(zst(NESP,NLEV))
-       allocate(zstt(NESP,NLEV))
-       allocate(zspf(NESP))
-       allocate(ztgp(NHOR,NLEV))
-       allocate(zdtgp(NHOR,NLEV))
-       allocate(zdps(NHOR))
-       allocate(zsum1(4))
-       allocate(zgw(NHOR))
-       jhor=0
-       do jlat=1,NHPP
-        do jlon=1,NLON*2
-         jhor=jhor+1
-         zgw(jhor)=gwd(jlat)
-        enddo
-       enddo
-       zst  = stp    !call mpgallsp(zst,stp,NLEV)
-       zstt = stt    !call mpgallsp(zstt,stt,NLEV)
-       zspf = zsp    !call mpgallsp(zspf,zsp,1)
-       do jlev = 1 , NLEV
-          call sp2fc(zst(1,jlev),ztgp(1,jlev))
-          call sp2fc(zstt(1,jlev),zdtgp(1,jlev))
-       enddo
-       call sp2fc(zspf,zdps)
-       call fc2gp(ztgp,NLON,NLPP*NLEV)
-       call fc2gp(zdtgp,NLON,NLPP*NLEV)
-       call fc2gp(zdps,NLON,NLPP)
-       zdps(:)=psurf*exp(zdps(:))
-       zsum1(:)=0.
-       do jlev=1,NLEV
-        ztgp(:,jlev)=ct*(ztgp(:,jlev)+t0(jlev))
-        zdtgp(:,jlev)=ct*ww_scale*zdtgp(:,jlev)
-        zsum1(1)=zsum1(1)+SUM(zdtgp(:,jlev)*zgw(:)                      &
-     &                       *zcp*zdps(:)/ga*dsigma(jlev)               &
-     &                       ,mask=(zdtgp(:,jlev) >= 0.))
-        zsum1(2)=zsum1(2)+SUM(zdtgp(:,jlev)*zgw(:)                      &
-     &                       *zcp*zdps(:)/ga*dsigma(jlev)               &
-     &                       ,mask=(zdtgp(:,jlev) < 0.))
-        zsum1(3)=zsum1(3)+SUM(zdtgp(:,jlev)/ztgp(:,jlev)*zgw(:)         &
-     &                       *zcp*zdps(:)/ga*dsigma(jlev)               &
-     &                       ,mask=(zdtgp(:,jlev) >= 0.))
-        zsum1(4)=zsum1(4)+SUM(zdtgp(:,jlev)/ztgp(:,jlev)*zgw(:)         &
-     &                       *zcp*zdps(:)/ga*dsigma(jlev)               &
-     &                       ,mask=(zdtgp(:,jlev) < 0.))
-       enddo
-       zsum3=SUM(zgw(:))
-       !call mpsumbcr(zsum1,4)
-       !call mpsumbcr(zsum3,1)
-       zsum1(:)=zsum1(:)/zsum3
-       !if(mypid == NROOT) then
-         ztp=zsum1(1)/zsum1(3)
-         zztm=zsum1(2)/zsum1(4)
-         write(9,*) zsum1(:),zsum1(1)/zsum1(3),zsum1(2)/zsum1(4),(ztp-zztm)/ztp
-       !endif
-       deallocate(zst)
-       deallocate(zstt)
-       deallocate(zspf)
-       deallocate(ztgp)
-       deallocate(zdps)
-       deallocate(zdtgp)
-       deallocate(zsum1)
-       deallocate(zgw)
-      endif
+   ! 暂时关闭 for OpenACC testing
+   ! checked, ndheat=0
+   !   if(ndheat > 1) then
+   !    zcp=gascon/akap
+   !    allocate(zst(NESP,NLEV))
+   !    allocate(zstt(NESP,NLEV))
+   !    allocate(zspf(NESP))
+   !    allocate(ztgp(NHOR,NLEV))
+   !    allocate(zdtgp(NHOR,NLEV))
+   !    allocate(zdps(NHOR))
+   !    allocate(zsum1(4))
+   !    allocate(zgw(NHOR))
+   !    jhor=0
+   !    do jlat=1,NHPP
+   !     do jlon=1,NLON*2
+   !      jhor=jhor+1
+   !      zgw(jhor)=gwd(jlat)
+   !     enddo
+   !    enddo
+   !    zst  = stp    !call mpgallsp(zst,stp,NLEV)
+   !    zstt = stt    !call mpgallsp(zstt,stt,NLEV)
+   !    zspf = zsp    !call mpgallsp(zspf,zsp,1)
+   !    do jlev = 1 , NLEV
+   !       call sp2fc(zst(1,jlev),ztgp(1,jlev))
+   !       call sp2fc(zstt(1,jlev),zdtgp(1,jlev))
+   !    enddo
+   !    call sp2fc(zspf,zdps)
+   !    call fc2gp(ztgp,NLON,NLPP*NLEV)
+   !    call fc2gp(zdtgp,NLON,NLPP*NLEV)
+   !    call fc2gp(zdps,NLON,NLPP)
+   !    zdps(:)=psurf*exp(zdps(:))
+   !    zsum1(:)=0.
+   !    do jlev=1,NLEV
+   !     ztgp(:,jlev)=ct*(ztgp(:,jlev)+t0(jlev))
+   !     zdtgp(:,jlev)=ct*ww_scale*zdtgp(:,jlev)
+   !     zsum1(1)=zsum1(1)+SUM(zdtgp(:,jlev)*zgw(:)                      &
+   !  &                       *zcp*zdps(:)/ga*dsigma(jlev)               &
+   !  &                       ,mask=(zdtgp(:,jlev) >= 0.))
+   !     zsum1(2)=zsum1(2)+SUM(zdtgp(:,jlev)*zgw(:)                      &
+   !  &                       *zcp*zdps(:)/ga*dsigma(jlev)               &
+   !  &                       ,mask=(zdtgp(:,jlev) < 0.))
+   !     zsum1(3)=zsum1(3)+SUM(zdtgp(:,jlev)/ztgp(:,jlev)*zgw(:)         &
+   !  &                       *zcp*zdps(:)/ga*dsigma(jlev)               &
+   !  &                       ,mask=(zdtgp(:,jlev) >= 0.))
+   !     zsum1(4)=zsum1(4)+SUM(zdtgp(:,jlev)/ztgp(:,jlev)*zgw(:)         &
+   !  &                       *zcp*zdps(:)/ga*dsigma(jlev)               &
+   !  &                       ,mask=(zdtgp(:,jlev) < 0.))
+   !    enddo
+   !    zsum3=SUM(zgw(:))
+   !    !call mpsumbcr(zsum1,4)
+   !    !call mpsumbcr(zsum3,1)
+   !    zsum1(:)=zsum1(:)/zsum3
+   !    !if(mypid == NROOT) then
+   !      ztp=zsum1(1)/zsum1(3)
+   !      zztm=zsum1(2)/zsum1(4)
+   !      write(9,*) zsum1(:),zsum1(1)/zsum1(3),zsum1(2)/zsum1(4),(ztp-zztm)/ztp
+   !    !endif
+   !    deallocate(zst)
+   !    deallocate(zstt)
+   !    deallocate(zspf)
+   !    deallocate(ztgp)
+   !    deallocate(zdps)
+   !    deallocate(zdtgp)
+   !    deallocate(zsum1)
+   !    deallocate(zgw)
+   !   endif
 
 !     7. Add newtonian cooling, friction and diffusion tendencies
 
@@ -3781,7 +3828,10 @@ end subroutine master
 !     8. Apply Robert Asselin time filter (not for short initial timesteps)
 !        d(t) = pnu * f(t-1) + pnu * f(t+1) - 2 * pnu * f(t)
 
-      if (nkits == 0) then 
+   ! nkits 是初始化小起步时的标志 程序一开始nkits=3 进行3个小起步后nkits=0并进入mainloop
+   ! mainloop中nkits==0 所以以下if块在mainloop中执行 在mainloop之前不执行 故必须保留
+   !   if (nkits == 0) then 
+      if (mloop) then 
          zwp(:)   = pnu * (spm(:)   + spp(:)   - 2.0 * zpm(:)  )
          zwd(:,:) = pnu * (sdm(:,:) + sdp(:,:) - 2.0 * zdm(:,:))
          zwz(:,:) = pnu * (szm(:,:) + szp(:,:) - 2.0 * zzm(:,:))
@@ -3802,33 +3852,37 @@ end subroutine master
          stp(:,:) = stp(:,:) - (1.0 - alpha) * zwt(:,:)
       endif
 
-      if (nenergy > 0 .or. nentropy > 0) then
-       zstte(:,:,1)=(stm(:,:)-ztm(:,:))/delt2
-       zspt(:)=(spm(:)-zpm(:))/delt2
-      endif
-      if(nenergy > 0) then
-       call mkenerdiag(ztm,zstte(:,:,1),zpm,zspt,denergy(:,9))
-      endif
-      if (nentropy > 0) then
-       call mkentrodiag(ztm,zstte(:,:,1),zpm,dentropy(:,9))
-      endif
+   ! 暂时关闭 for OpenACC testing
+   ! checked, nenergy=nentropy=0
+   !   if (nenergy > 0 .or. nentropy > 0) then
+   !    zstte(:,:,1)=(stm(:,:)-ztm(:,:))/delt2
+   !    zspt(:)=(spm(:)-zpm(:))/delt2
+   !   endif
+   !   if(nenergy > 0) then
+   !    call mkenerdiag(ztm,zstte(:,:,1),zpm,zspt,denergy(:,9))
+   !   endif
+   !   if (nentropy > 0) then
+   !    call mkentrodiag(ztm,zstte(:,:,1),zpm,dentropy(:,9))
+   !   endif
 
 !     9. Save spectral arrays for extended output
 
-      if (nextout == 1) then
-         if (mod(nstep,nafter) == nafter - 2) then
-            if (.not. allocated(st2)) allocate(st2(nesp,nlev))
-            st2(:,:) = st(:,:)
-            if (.not. allocated(sp2)) allocate(sp2(nesp))
-            sp2(:) = sp(:)
-         endif
-         if (mod(nstep,nafter) == nafter - 1) then
-            if (.not. allocated(st1)) allocate(st1(nesp,nlev))
-            st1(:,:) = st(:,:)
-            if (.not. allocated(sp1)) allocate(sp1(nesp))
-            sp1(:) = sp(:)
-         endif
-      endif
+   ! 暂时关闭 for OpenACC testing
+   ! checked, nextout=0, 用于entropy诊断输出的开关 默认off
+   !   if (nextout == 1) then
+   !      if (mod(nstep,nafter) == nafter - 2) then
+   !         if (.not. allocated(st2)) allocate(st2(nesp,nlev))
+   !         st2(:,:) = st(:,:)
+   !         if (.not. allocated(sp2)) allocate(sp2(nesp))
+   !         sp2(:) = sp(:)
+   !      endif
+   !      if (mod(nstep,nafter) == nafter - 1) then
+   !         if (.not. allocated(st1)) allocate(st1(nesp,nlev))
+   !         st1(:,:) = st(:,:)
+   !         if (.not. allocated(sp1)) allocate(sp1(nesp))
+   !         sp1(:) = sp(:)
+   !      endif
+   !   endif
 
 !     10. Gather spectral modes from all processes
 
@@ -3837,19 +3891,22 @@ end subroutine master
       sz = szp    !call mpgallsp(sz,szp,NLEV)
       st = stp    !call mpgallsp(st,stp,NLEV)
 
-      if(nenergy > 0 .or. nentropy > 0) then
-       deallocate(zstte)
-      endif
-      if(ndheat > 0) then
-       deallocate(zszte)
-       deallocate(zsdte)
-      endif
-      if(nenergy > 0 .or. nentropy > 0 .or. ndheat > 0) then
-       deallocate(zsp)
-       deallocate(zspt)
-      endif
+   ! 暂时关闭 for OpenACC testing
+   ! checked, nenergy=nentropy=ndheat=0
+   !   if(nenergy > 0 .or. nentropy > 0) then
+   !    deallocate(zstte)
+   !   endif
+   !   if(ndheat > 0) then
+   !    deallocate(zszte)
+   !    deallocate(zsdte)
+   !   endif
+   !   if(nenergy > 0 .or. nentropy > 0 .or. ndheat > 0) then
+   !    deallocate(zsp)
+   !    deallocate(zspt)
+   !   endif
 
-      return
+!$acc end kernels
+
       end subroutine spectral
 
 
