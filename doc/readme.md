@@ -1,5 +1,18 @@
 # Change Log
 
+## 2017-Apr-23: Isolate FFT&legsym from their own modules
+
+Major modifications were made during this week:
+
+- Remove FFT module and move fftini into prolog for just one-time calling. Put FFT trigs in pumamod and call FFT subroutines (fc2gp and gp2fc) with trigs explicitly.
+- Remove legsym module and move those "q" arrays into pumamod, so that simplify those SH-related subroutines (sp2fc,fc2sp,sp2fcdmu,dv2uv,mktend) and explicitly mark the required variables from pumamod, with "only:" after each "use pumamod".
+- Add "only:" after "use pumamod" for subroutine gridpoing
+- Add "only:" after "use pumamod" for subroutine calcgp within gridpoing
+- Add "only:" after "use pumamod" for subroutine spectral
+- Check "only:" after "use pumamod" for subroutine mktend in mod_legsym.f08
+
+So far, we are ready to shoot OpenACC!
+
 ## 2017-Apr-15~20: Extract a clean OpenACC version
 
 Extract a clean version (src_openacc) for OpenACC optimization later, during Yan-Qi Lake journey. Moreover, fix a bug in fft module and make it work with PGI compiler (both serial and openmp), so that we are ready for OpenACC march now!

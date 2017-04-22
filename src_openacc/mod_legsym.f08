@@ -1,14 +1,32 @@
+! 关键过程
+! public:   fc2sp    Fourier to SH
+!           sp2fc    SH to Fourier
+!           sp2fcdmu SH to Fourier with repect to latitude
+!           dv2uv    Div/Vor to U/V
+!           mktend   Add non-linear terms in gridpoint subroutine but actually in Fourier and SH space
+
 ! ************************************************************************
 ! * module legsym - direct and indirect Legendre transformation routines *
 ! * using symmetric and antisymmetric fourier coefficients               *
 ! * E. Kirk 08-Sep-2010 tested for T21 - T682 resolutions 32 & 64 bit    *
 ! ************************************************************************
+! =================
+! SUBROUTINE LEGINI
+! =================
 
-module legsym
-! ************************
-! * Legendre Polynomials *
-! ************************
+subroutine legini(klat,klpp,kesp,klev,vorpla,sid,gwd)
+use pumamod, only: qi,qj,qc,qe,qq,qu,qv,qx
+implicit none
 
+integer, intent(in) :: klat
+integer, intent(in) :: klpp
+integer, intent(in) :: kesp
+integer, intent(in) :: klev
+real   , intent(in) :: vorpla   ! planetary vorticity
+real(kind=8), intent(in) :: sid(*)   ! sin(phi)
+real(kind=8), intent(in) :: gwd(*)   ! Gaussian weight (phi)
+
+! local
 integer :: ntru
 integer :: ntp1
 integer :: ncsp
@@ -20,44 +38,14 @@ integer :: nlat
 integer :: nlev
 real    :: plavor
 
-real   , allocatable :: qi(:,:) ! P(m,n) = Associated Legendre Polynomials, used in sp2fc
-real   , allocatable :: qj(:,:) ! Q(m,n) = Used for d/d(mu)                 used in sp2fcdmu
-real   , allocatable :: qc(:,:) ! P(m,n) * gwd                              used in fc2sp
-real   , allocatable :: qe(:,:) ! Q(mn,) * gwd / cos2                       used in mktend
-real   , allocatable :: qq(:,:) ! P(m,n) * gwd / cos2 * n * (n+1) / 2  "
-real   , allocatable :: qu(:,:) ! P(m,n) / (n*(n+1)) * m                    used in dv2uv
-real   , allocatable :: qv(:,:) ! Q(m,n) / (n*(n+1))                        used in dv2uv
-complex, allocatable :: qx(:,:) ! P(m,n) * gwd / cos2 * m                   used in mktend
-end module legsym
-
-! =================
-! SUBROUTINE LEGINI
-! =================
-
-subroutine legini(klat,klpp,kesp,klev,vorpla,sid,gwd)
-use legsym
-implicit none
-
-integer :: klat
-integer :: klpp
-integer :: kesp
-integer :: klev
-
-real          :: vorpla   ! planetary vorticity
-real (kind=8) :: sid(*)   ! sin(phi)
-real (kind=8) :: gwd(*)   ! Gaussian weight (phi)
-
 integer :: jlat ! Latitude
 integer :: lm
 integer :: m
 integer :: n
 
 real (kind=8) :: amsq
-real (kind=8) :: z1
-real (kind=8) :: z2
-real (kind=8) :: z3
-real (kind=8) :: f1m
-real (kind=8) :: f2m
+real (kind=8) :: z1,z2,z3
+real (kind=8) :: f1m,f2m
 real (kind=8) :: znn1
 real (kind=8) :: zsin    ! sin
 real (kind=8) :: zcsq    ! cos2
@@ -162,7 +150,7 @@ end subroutine legini
 ! ================
 
 subroutine fc2sp(fc,sp)
-use legsym
+use pumamod, only: qc, nlon,nlat,nhpp,ntp1,nesp
 implicit none
 complex, dimension(nlon,nhpp), intent(in ) :: fc
 complex, dimension(nesp/2),    intent(out) :: sp
@@ -191,7 +179,7 @@ end subroutine fc2sp
 ! ================
 
 subroutine sp2fc(sp,fc) ! Spectral to Fourier
-use legsym
+use pumamod, only: qi, nlon,nlat,nhpp,ntp1,ncsp
 implicit none
 complex, dimension(ncsp),      intent(in ) :: sp   ! Coefficients of spherical harmonics
 complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
@@ -217,43 +205,13 @@ do l = 1 , nhpp
 enddo ! l
 end subroutine sp2fc
 
-! XW(2017/4/14): apply sp2fc on all 2D grid (lon,lat)
-! for outsp to produce new output in GrADS format
-subroutine sp2fc_all(sp,fc) ! Spectral to Fourier
-use legsym
-implicit none
-complex, dimension(ncsp),        intent(in ) :: sp   ! Coefficients of spherical harmonics
-complex, dimension(nlon,nlat/2), intent(out) :: fc   ! Fourier coefficients
-! local
-integer :: l ! Loop index for latitude
-integer :: m ! Loop index for zonal wavenumber m
-integer :: w ! Index for spectral mode
-integer :: e ! Index for last wavenumber
-complex :: fs,fa
-
-fc(:,:) = (0.0,0.0)
-
-do l = 1 , nlat/2
-  w = 1  
-  do m = 1 ,ntp1
-    e = w + ntp1 - m
-    fs = dot_product(qi(w  :e:2,l),sp(w  :e:2)) ! XW: qi derived from module "legsym"
-    fa = dot_product(qi(w+1:e:2,l),sp(w+1:e:2))
-    fc(m     ,l) = fs + fa
-    fc(m+nlat,l) = fs - fa
-    w = e + 1
-  enddo ! m
-enddo ! l
-end subroutine sp2fc_all
-
-
 
 ! ===================
 ! SUBROUTINE SP2FCDMU
 ! ===================
 
 subroutine sp2fcdmu(sp,fc) ! Spectral to Fourier d/dmu
-use legsym
+use pumamod, only: qj, nlon,nlat,nhpp,ntp1,ncsp
 implicit none
 complex, dimension(ncsp),      intent(in)  :: sp   ! Coefficients of spherical harmonics
 complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
@@ -270,7 +228,7 @@ do l = 1 , nhpp
   w = 1  
   do m = 1 , ntp1
     e = w + ntp1 - m
-    fs = dot_product(qj(w  :e:2,l),sp(w  :e:2))
+    fs = dot_product(qj(w  :e:2,l),sp(w  :e:2))    ! qj from legsym
     fa = dot_product(qj(w+1:e:2,l),sp(w+1:e:2))
     fc(m     ,l) = fa + fs
     fc(m+nlat,l) = fa - fs
@@ -283,55 +241,55 @@ end subroutine sp2fcdmu
 ! ================
 ! SUBROUTINE DV2UV
 ! ================
-
+! 没有被任何地方call过，纯粹为了教学和学习保留在此
 ! This is an alternative subroutine for computing U and V from Div and Vor.
 ! It looks much prettier than the regular one, but unfortunately it is slower
 ! if compiling with "gfortran". 
 ! I leave it (unused) in this module for educational purposes.
-
-subroutine dv2uv_alt(pd,pz,pu,pv)
-use legsym
-implicit none
-complex, parameter :: i = (0.0,1.0)
-complex :: pd(nesp/2)    ! Spherical harmonics  of divergence
-complex :: pz(nesp/2)    ! Spherical harmonics  of vorticity
-complex :: pu(nlon,nhpp) ! Fourier coefficients of u
-complex :: pv(nlon,nhpp) ! Fourier coefficients of v
-complex :: zsave,uds,vds,uzs,vzs,uda,vda,uza,vza
-
-integer :: l ! Loop index for latitude
-integer :: m ! Loop index for zonal wavenumber m
-integer :: w ! Loop index for spectral mode
-integer :: e ! End index
-
-pu(:,:) = (0.0,0.0)
-pv(:,:) = (0.0,0.0)
-
-zsave = pz(2)                      ! Save mode(0,1) of vorticity
-pz(2) = zsave - cmplx(plavor,0.0)  ! Convert pz from absolute to relative vorticity
-
-do l = 1 , nhpp
-  w = 1  
-  do m = 1 ,ntp1
-    e = w + ntp1 - m
-    uds = i * dot_product(qu(w  :e:2,l),pd(w:  e:2))
-    vds =     dot_product(qv(w  :e:2,l),pd(w:  e:2))
-    uzs = i * dot_product(qu(w  :e:2,l),pz(w:  e:2))
-    vzs =     dot_product(qv(w  :e:2,l),pz(w:  e:2))
-    uda = i * dot_product(qu(w+1:e:2,l),pd(w+1:e:2))
-    vda =     dot_product(qv(w+1:e:2,l),pd(w+1:e:2))
-    uza = i * dot_product(qu(w+1:e:2,l),pz(w+1:e:2))
-    vza =     dot_product(qv(w+1:e:2,l),pz(w+1:e:2))
-    pu(m     ,l) =  vzs - uds + vza - uda
-    pu(m+nlat,l) = -vzs - uds + vza + uda
-    pv(m     ,l) = -vds - uzs - vda - uza
-    pv(m+nlat,l) =  vds - uzs - vda + uza
-    w = e + 1
-  enddo ! m
-enddo ! l
-pz(2) = zsave
-return
-end subroutine dv2uv_alt
+!
+!subroutine dv2uv_alt(pd,pz,pu,pv)
+!use legsym
+!implicit none
+!complex, parameter :: i = (0.0,1.0)
+!complex :: pd(nesp/2)    ! Spherical harmonics  of divergence
+!complex :: pz(nesp/2)    ! Spherical harmonics  of vorticity
+!complex :: pu(nlon,nhpp) ! Fourier coefficients of u
+!complex :: pv(nlon,nhpp) ! Fourier coefficients of v
+!complex :: zsave,uds,vds,uzs,vzs,uda,vda,uza,vza
+!
+!integer :: l ! Loop index for latitude
+!integer :: m ! Loop index for zonal wavenumber m
+!integer :: w ! Loop index for spectral mode
+!integer :: e ! End index
+!
+!pu(:,:) = (0.0,0.0)
+!pv(:,:) = (0.0,0.0)
+!
+!zsave = pz(2)                      ! Save mode(0,1) of vorticity
+!pz(2) = zsave - cmplx(plavor,0.0)  ! Convert pz from absolute to relative vorticity
+!
+!do l = 1 , nhpp
+!  w = 1  
+!  do m = 1 ,ntp1
+!    e = w + ntp1 - m
+!    uds = i * dot_product(qu(w  :e:2,l),pd(w:  e:2))
+!    vds =     dot_product(qv(w  :e:2,l),pd(w:  e:2))
+!    uzs = i * dot_product(qu(w  :e:2,l),pz(w:  e:2))
+!    vzs =     dot_product(qv(w  :e:2,l),pz(w:  e:2))
+!    uda = i * dot_product(qu(w+1:e:2,l),pd(w+1:e:2))
+!    vda =     dot_product(qv(w+1:e:2,l),pd(w+1:e:2))
+!    uza = i * dot_product(qu(w+1:e:2,l),pz(w+1:e:2))
+!    vza =     dot_product(qv(w+1:e:2,l),pz(w+1:e:2))
+!    pu(m     ,l) =  vzs - uds + vza - uda
+!    pu(m+nlat,l) = -vzs - uds + vza + uda
+!    pv(m     ,l) = -vds - uzs - vda - uza
+!    pv(m+nlat,l) =  vds - uzs - vda + uza
+!    w = e + 1
+!  enddo ! m
+!enddo ! l
+!pz(2) = zsave
+!return
+!end subroutine dv2uv_alt
 
 
 ! ================
@@ -339,7 +297,7 @@ end subroutine dv2uv_alt
 ! ================
 
 subroutine dv2uv(pd,pz,pu,pv)
-use legsym
+use pumamod, only: qu,qv, nlon,nlat,nhpp,ntru,ntp1,nesp, plavor
 implicit none
 
 real :: pd(2,nesp/2)    ! Spherical harmonics  of divergence
@@ -450,7 +408,7 @@ end subroutine dv2uv
 ! =================
 
 subroutine mktend(d,t,z,tn,fu,fv,ke,ut,vt)
-use legsym
+use pumamod, only: qq,qe,qc,qx, nlon,nlat,nhpp,ntp1,nesp
 implicit none
 
 complex, intent(in) :: tn(nlon,nhpp)
@@ -501,82 +459,82 @@ end subroutine mktend
 ! ================
 ! SUBROUTINE QTEND
 ! ================
-
-subroutine qtend_old(q,qn,uq,vq)
-use legsym
-implicit none
-
-complex, intent(in) :: qn(nlon,nhpp)
-complex, intent(in) :: uq(nlon,nhpp)
-complex, intent(in) :: vq(nlon,nhpp)
-
-complex, intent(out) :: q(nesp/2)
-
-integer :: l ! Loop index for latitude
-integer :: m ! Loop index for zonal wavenumber m
-integer :: w ! Loop index for spectral mode
-integer :: e ! End index for w
-
-complex :: qns,qna,uqs,uqa,vqs,vqa
-
-q(:) = (0.0,0.0) ! humidity
-
-do l = 1 , nhpp  ! process pairs of Nort-Souqh latitudes
-   w = 1 
-   do m = 1 , ntp1
-      uqs = uq(m,l) + uq(m+nlat,l) ; uqa = uq(m,l) - uq(m+nlat,l)
-      vqs = vq(m,l) + vq(m+nlat,l) ; vqa = vq(m,l) - vq(m+nlat,l)
-      qns = qn(m,l) + qn(m+nlat,l) ; qna = qn(m,l) - qn(m+nlat,l)
-      e = w + ntp1 - m    ! vector of symmetric modes
-      q(w:e:2) = q(w:e:2) + qe(w:e:2,l) * vqa + qc(w:e:2,l) * qns - qx(w:e:2,l) * uqs 
-      w = w + 1           ! vector of antisymmetric modes
-      q(w:e:2) = q(w:e:2) + qe(w:e:2,l) * vqs + qc(w:e:2,l) * qna - qx(w:e:2,l) * uqa 
-      w = e + 1 
-   enddo ! m 
-enddo ! l 
-return
-end subroutine qtend_old
+! 没有被任何地方call过，纯粹为了教学和学习保留在此
+!subroutine qtend_old(q,qn,uq,vq)
+!use legsym
+!implicit none
+!
+!complex, intent(in) :: qn(nlon,nhpp)
+!complex, intent(in) :: uq(nlon,nhpp)
+!complex, intent(in) :: vq(nlon,nhpp)
+!
+!complex, intent(out) :: q(nesp/2)
+!
+!integer :: l ! Loop index for latitude
+!integer :: m ! Loop index for zonal wavenumber m
+!integer :: w ! Loop index for spectral mode
+!integer :: e ! End index for w
+!
+!complex :: qns,qna,uqs,uqa,vqs,vqa
+!
+!q(:) = (0.0,0.0) ! humidity
+!
+!do l = 1 , nhpp  ! process pairs of Nort-Souqh latitudes
+!   w = 1 
+!   do m = 1 , ntp1
+!      uqs = uq(m,l) + uq(m+nlat,l) ; uqa = uq(m,l) - uq(m+nlat,l)
+!      vqs = vq(m,l) + vq(m+nlat,l) ; vqa = vq(m,l) - vq(m+nlat,l)
+!      qns = qn(m,l) + qn(m+nlat,l) ; qna = qn(m,l) - qn(m+nlat,l)
+!      e = w + ntp1 - m    ! vector of symmetric modes
+!      q(w:e:2) = q(w:e:2) + qe(w:e:2,l) * vqa + qc(w:e:2,l) * qns - qx(w:e:2,l) * uqs 
+!      w = w + 1           ! vector of antisymmetric modes
+!      q(w:e:2) = q(w:e:2) + qe(w:e:2,l) * vqs + qc(w:e:2,l) * qna - qx(w:e:2,l) * uqa 
+!      w = e + 1 
+!   enddo ! m 
+!enddo ! l 
+!return
+!end subroutine qtend_old
 
 
 ! ================
 ! SUBROUTINE UV2DV
 ! ================
-
-subroutine uv2dv(pu,pv,pd,pz)
-use legsym
-implicit none
-
-complex, intent(in) :: pu(nlon,nhpp)
-complex, intent(in) :: pv(nlon,nhpp)
-
-complex, intent(out) :: pd(nesp/2)
-complex, intent(out) :: pz(nesp/2)
-
-integer :: l ! Loop index for latitude
-integer :: m ! Loop index for zonal wavenumber m
-integer :: w ! Loop index for spectral mode
-integer :: e ! End index for w
-
-complex :: zus,zua,zvs,zva
-
-pd(:) = (0.0,0.0) ! divergence
-pz(:) = (0.0,0.0) ! vorticity
-
-do l = 1 , nhpp   ! process pairs of Nort-Souqh latitudes
-   w = 1 
-   do m = 1 , NTP1
-      zus = pu(m,l) + pu(m+nlat,l) ; zua = pu(m,l) - pu(m+nlat,l) 
-      zvs = pv(m,l) + pv(m+nlat,l) ; zva = pv(m,l) - pv(m+nlat,l) 
-      e = w + ntp1 - m    ! vector of symmetric modes
-      pz(w:e:2) = pz(w:e:2) + qe(w:e:2,l) * zua + qx(w:e:2,l) * zvs 
-      pd(w:e:2) = pd(w:e:2) - qe(w:e:2,l) * zva + qx(w:e:2,l) * zus 
-      w = w + 1           ! vector of antisymmetric modes
-      pz(w:e:2) = pz(w:e:2) + qe(w:e:2,l) * zus + qx(w:e:2,l) * zva 
-      pd(w:e:2) = pd(w:e:2) - qe(w:e:2,l) * zvs + qx(w:e:2,l) * zua 
-      w = e + 1 
-   enddo ! m 
-enddo ! l 
-end subroutine uv2dv
+! 没有被任何地方call过，纯粹为了教学和学习保留在此
+!subroutine uv2dv(pu,pv,pd,pz)
+!use legsym
+!implicit none
+!
+!complex, intent(in) :: pu(nlon,nhpp)
+!complex, intent(in) :: pv(nlon,nhpp)
+!
+!complex, intent(out) :: pd(nesp/2)
+!complex, intent(out) :: pz(nesp/2)
+!
+!integer :: l ! Loop index for latitude
+!integer :: m ! Loop index for zonal wavenumber m
+!integer :: w ! Loop index for spectral mode
+!integer :: e ! End index for w
+!
+!complex :: zus,zua,zvs,zva
+!
+!pd(:) = (0.0,0.0) ! divergence
+!pz(:) = (0.0,0.0) ! vorticity
+!
+!do l = 1 , nhpp   ! process pairs of Nort-Souqh latitudes
+!   w = 1 
+!   do m = 1 , NTP1
+!      zus = pu(m,l) + pu(m+nlat,l) ; zua = pu(m,l) - pu(m+nlat,l) 
+!      zvs = pv(m,l) + pv(m+nlat,l) ; zva = pv(m,l) - pv(m+nlat,l) 
+!      e = w + ntp1 - m    ! vector of symmetric modes
+!      pz(w:e:2) = pz(w:e:2) + qe(w:e:2,l) * zua + qx(w:e:2,l) * zvs 
+!      pd(w:e:2) = pd(w:e:2) - qe(w:e:2,l) * zva + qx(w:e:2,l) * zus 
+!      w = w + 1           ! vector of antisymmetric modes
+!      pz(w:e:2) = pz(w:e:2) + qe(w:e:2,l) * zus + qx(w:e:2,l) * zva 
+!      pd(w:e:2) = pd(w:e:2) - qe(w:e:2,l) * zvs + qx(w:e:2,l) * zua 
+!      w = e + 1 
+!   enddo ! m 
+!enddo ! l 
+!end subroutine uv2dv
 
 
 ! ==================
@@ -584,7 +542,7 @@ end subroutine uv2dv
 ! ==================
 
 subroutine reg2alt(pr,klev)
-use legsym
+use pumamod, only: NLON,NLAT
 implicit none
 
 integer, intent(in) :: klev
@@ -606,7 +564,7 @@ end subroutine reg2alt
 ! ==================
 
 subroutine alt2reg(pa,klev)
-use legsym
+use pumamod, only: NLON,NLAT
 implicit none
 
 integer, intent(in) :: klev
@@ -629,7 +587,7 @@ end subroutine alt2reg
 ! ================
 
 subroutine altcs(pcs)
-use legsym
+use pumamod, only: NLAT,NLEV
 implicit none
 real, dimension(nlat,nlev), intent(inout) :: pcs
 real, dimension(nlat,nlev) :: pal

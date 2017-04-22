@@ -1,9 +1,101 @@
-!     =============
-!     MODULE FFTMOD
-!     =============
+!           这两个关键过程调用安全 无任何依赖
+! public:   gp2fc( x(N,lot), N, lot, trigs),  lot=NLAT*NLEV
+!           fc2gp( x(N,lot), N, lot, trigs)
+!           这两个subroutine都只需要use pumamod中的FFT基函数trigs(NLON)
+!           而trigs已经在prolog中使用fftini初始化过了
+!           在gridpoint中 频繁地调用了这两个子程序
+! private:  fftini   基函数初始化 设置pumamod中的trigs 依赖use pumamod
+!      pure dfft2, dfft3, dfft4, dfft8
+!      pure ifft2, ifft3, ifft4, ifft8
+! Comments by X. Wen, Peking Univ, Apr-22-2017
 
-      module fftmod
+
+!     ================
+!     SUBROUTINE GP2FC
+!     ================
+
+! XW (2017/4/8): can parallel along with lot!!! 
+! lot:多少根纬线? (NLPP*NLEV); n:每根纬线上有多少点? (NLON)
+
+      subroutine gp2fc(a,n,lot,base)
       implicit none
+      integer, intent(in) :: n, lot
+      real, dimension(n,lot), intent(inout) :: a
+      real, dimension(n    ), intent(in   ) :: base
+      integer :: la,l
+
+      !XW(2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
+      !XW(2017/4/11): above is WRONG!!! causing MPI segmentation fault. recover it back!!!
+      !if (n /= lastn) then
+      !   if (allocated(trigs)) deallocate(trigs)
+      !   allocate(trigs(n))
+      !   lastn = n !XW: make fftini can be called for just ONCE
+      !   call fftini(n)
+      !endif
+
+      call dfft8(a,a,n,lot)
+      la = n / 8
+      do while (la >= 4)
+         call dfft4(a,base,n,lot,la)
+      enddo
+
+      if (la == 3) then
+         do l = 1 , lot
+            call dfft3(a(1,l),base,n)
+         enddo
+      endif
+
+      if (la == 2) then
+         do l = 1 , lot
+            call dfft2(a(1,l),base,n)
+         enddo
+      endif
+      end subroutine gp2fc
+
+!     ================
+!     SUBROUTINE FC2GP
+!     ================
+
+      subroutine fc2gp(a,n,lot,base)
+      implicit none
+      integer, intent(in) :: n, lot
+      real, dimension(n,lot), intent(inout) :: a
+      real, dimension(n    ), intent(in   ) :: base
+      integer :: nf,la
+
+      !XW (2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
+      !XW(2017/4/11): above is WRONG!!! causing MPI segmentation fault. recover it back!!!
+      !if (n /= lastn) then
+      !   if (allocated(trigs)) deallocate(trigs)
+      !   allocate(trigs(n))
+      !   lastn = n
+      !   call fftini(n) !XW: just call fftini ONCE
+      !endif
+
+      nf = n/8
+      do while (nf >= 4)
+         nf = nf/4
+      enddo
+      la = 1
+      if (nf == 2) call ifft2(a,base,n,lot,la)
+      if (nf == 3) call ifft3(a,base,n,lot,la)
+      do while (la < n/8)
+         call ifft4(a,base,n,lot,la)
+      enddo
+      call ifft8(a,a,n,lot)
+      end subroutine fc2gp
+
+!     =================
+!     SUBROUTINE FFTINI
+!     =================
+
+      subroutine fftini(n)
+      use pumamod, only: trigs
+      implicit none
+
+      integer, intent(in) :: n
+      
+      ! local
       integer, parameter :: NRES = 12
       integer, dimension(NRES) :: nallowed = (/16,32,48,64,96,128,256,384,512,1024,2048,4096/)
 !     T3    - N16   : 8-2
@@ -18,100 +110,12 @@
 !     T341  - N1024 : 8-4-4-4-2
 !     T682  - N2048 : 8-4-4-4-4
 !     T1365 - N4096 : 8-4-4-4-4-2
-
-      integer :: lastn = 0
-      real, allocatable :: trigs(:) !XW: trigs(NLON) constant fourier base functions to be set in fftini
-      end module fftmod
-
-!     ================
-!     SUBROUTINE GP2FC
-!     ================
-
-! XW (2017/4/8): can parallel along with lot!!! 
-! lot:多少根纬线? (NLPP*NLEV); n:每根纬线上有多少点? (NLON)
-
-      subroutine gp2fc(a,n,lot)
-      use fftmod
-      implicit none
-      integer, intent(in) :: n, lot
-      real, dimension(n,lot), intent(inout) :: a
-      integer :: la,l
-
-      !XW(2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
-      !XW(2017/4/11): above is WRONG!!! causing MPI segmentation fault. recover it back!!!
-      if (n /= lastn) then
-         if (allocated(trigs)) deallocate(trigs)
-         allocate(trigs(n))
-         lastn = n !XW: make fftini can be called for just ONCE
-         call fftini(n)
-      endif
-
-      call dfft8(a,a,n,lot)
-      la = n / 8
-      do while (la >= 4)
-         call dfft4(a,trigs,n,lot,la)
-      enddo
-
-      if (la == 3) then
-         do l = 1 , lot
-            call dfft3(a(1,l),trigs,n)
-         enddo
-      endif
-
-      if (la == 2) then
-         do l = 1 , lot
-            call dfft2(a(1,l),trigs,n)
-         enddo
-      endif
-      end subroutine gp2fc
-
-!     ================
-!     SUBROUTINE FC2GP
-!     ================
-
-      subroutine fc2gp(a,n,lot)
-      use fftmod
-      implicit none
-      integer, intent(in) :: n, lot
-      real, dimension(n,lot), intent(inout) :: a
-      integer :: nf,la
-
-      !XW (2017/4/8): remove calling fftini from here to prolog in puma.f90, just once!
-      !XW(2017/4/11): above is WRONG!!! causing MPI segmentation fault. recover it back!!!
-      if (n /= lastn) then
-         if (allocated(trigs)) deallocate(trigs)
-         allocate(trigs(n))
-         lastn = n
-         call fftini(n) !XW: just call fftini ONCE
-      endif
-
-      nf = n/8
-      do while (nf >= 4)
-         nf = nf/4
-      enddo
-      la = 1
-      if (nf == 2) call ifft2(a,trigs,n,lot,la)
-      if (nf == 3) call ifft3(a,trigs,n,lot,la)
-      do while (la < n/8)
-         call ifft4(a,trigs,n,lot,la)
-      enddo
-      call ifft8(a,a,n,lot)
-      end subroutine fc2gp
-
-!     =================
-!     SUBROUTINE FFTINI
-!     =================
-
-      subroutine fftini(n)
-      use fftmod
-      implicit none
-      integer, intent(in) :: n
       logical :: labort
       integer :: j,k
       real :: del,angle
 
 !     check for allowed values of n
-
+ 
       labort = .true.
       do j = 1 , NRES
          if (n == nallowed(j)) labort = .false.
@@ -134,6 +138,9 @@
       !allocate(trigs(n))
       !lastn = n
       !XW(2017/4/11): above is WRONG!!! causing MPI segmentation fault. remove them!!!
+      ! MPI wrong, but OpenMP correct, also OpenACC correct! put in into prolog again!
+
+      allocate(trigs(n))
 
       del = 4.0 * asin(1.0) / n
       do k=0,n/2-1
@@ -141,6 +148,12 @@
         trigs(2*k+1) = cos(angle)
         trigs(2*k+2) = sin(angle)
       enddo
+
+      print *, " "
+      print *, "(XW2017-4-22): Performing fftini, with n or NLON =", n
+      print *, "trigs(:) are:"
+      print "(8f10.4)", trigs
+
       end subroutine fftini
 
 !     ================

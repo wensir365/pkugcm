@@ -33,10 +33,22 @@ character(80)  :: modelver   = "prototype (Apr/15/2017)"
 ! +++++++++++++++++++++++
 ! Xinyu added global var
 ! +++++++++++++++++++++++
-!integer (kind=8) :: Nbinary=0    ! number of new outputs in GrADS format
-!integer          :: outformat=1  ! output format (0=default; 1=default+GrADS)
-                                 ! see another key switch: "noutput"
-logical :: mloop = .FALSE.       ! check if in main loop (T), or in startup (F)
+!integer (kind=8) :: Nbinary=0      ! number of new outputs in GrADS format
+!integer          :: outformat=1    ! output format (0=default; 1=default+GrADS)
+                                    ! see another key switch: "noutput"
+logical           :: mloop = .FALSE.! check if in main loop (T), or in startup (F)
+                                    ! derived from FFT module, to facilitate OpenACC for FFT
+real, allocatable :: trigs(:)       ! XW: trigs(NLON) constant fourier base functions to be set in fftini
+                                    ! derived from legsym module, to facilitate OpenACC for SH
+real   , allocatable :: qi(:,:)     ! P(m,n) = Associated Legendre Polynomials  used in sp2fc
+real   , allocatable :: qj(:,:)     ! Q(m,n) = Used for d/d(mu)                 used in sp2fcdmu
+real   , allocatable :: qc(:,:)     ! P(m,n) * gwd                              used in fc2sp
+real   , allocatable :: qe(:,:)     ! Q(mn,) * gwd / cos2                       used in mktend
+real   , allocatable :: qq(:,:)     ! P(m,n) * gwd / cos2 * n * (n+1) / 2       used in mktend
+real   , allocatable :: qu(:,:)     ! P(m,n) / (n*(n+1)) * m                    used in dv2uv
+real   , allocatable :: qv(:,:)     ! Q(m,n) / (n*(n+1))                        used in dv2uv
+complex, allocatable :: qx(:,:)     ! P(m,n) * gwd / cos2 * m                   used in mktend & uv2dv
+
 
 !**************************************************************!
 ! The number of processes for processing on parallel machines  !
@@ -376,11 +388,11 @@ real, allocatable :: fric(:)          ! 1.0 / (2 Pi * tauf)
 
 real, allocatable :: bm1(:,:,:)
 real, allocatable :: dsigma(:)
-real, allocatable :: rdsig(:)
+real, allocatable :: rdsig(:)         ! 每一层的sigma厚度的一半
 real, allocatable :: sigma(:)         ! full level sigma
 real, allocatable :: sigmh(:)         ! half level sigma
 real, allocatable :: tkp(:)
-real, allocatable :: c(:,:)
+real, allocatable :: c(:,:)           ! XW: C matrix, used in calcgp
 real, allocatable :: xlphi(:,:)       ! matrix Lphi (g)
 real, allocatable :: xlt(:,:)         ! matrix LT (tau)
 
@@ -661,6 +673,7 @@ end subroutine allocate_arrays
 ! - inigau              : 计算Gauss纬度权重gwd及sin纬度sid
 !   ql & qld            : Legendre and Associated Legendre functions
 ! - inilat              : 设置csq, rcs, chlat
+! - fftini              : 我把mod_fft中的FFT基函数初始化放到这里来 只需执行一次
 ! - legpri              : 只打印一个表格显示lat, csq, gwd
 ! - readnl              : 读入_namelist并显示出来，修正基本的尺度因子
 ! - ppp_interface       : 读入ppp产生的输出文本并与_namelist对比看是否一致 (ALL DELETED)
@@ -716,6 +729,7 @@ integer  :: jlat              ! loop var
    !call fftini(NLON) XW(2017/4/11): I added this line incorrectly. Affect MPI.
    call inigau(NLAT,sid,gwd)
    call inilat
+   call fftini(NLON)
    call legpri
    call readnl
    !call ppp_interface  完全不必要
@@ -883,6 +897,7 @@ do jstep = 1 , nrun
       !if (mod(nstep,nafter)==0 .and. noutput==1) call outsp
       !if (mod(nstep,ndiag )==0) call diag
       !if (ncu > 0) call checkunit
+      if (mod(nstep,ndiag )==0)  print "(i10,2f10.4)", nstep, maxval(gu), minval(gu)
    !endif
 
 !  ******************************
@@ -2246,7 +2261,7 @@ end subroutine master
       !call mpscgp(zgp,zpp,klev)
       zpp = zgp
 
-      call gp2fc(zpp,NLON,NLPP*klev)
+      call gp2fc(zpp,NLON,NLPP*klev,trigs)
       do jlev = 1 , klev
          call fc2sp(zpp(1,jlev),psp(1,jlev))
       enddo
@@ -2965,7 +2980,7 @@ end subroutine master
 !     SUBROUTINE GRIDPOINT
 !     Key callings:
 !     - calcgp              : 超级密集计算               纯数组计算 没有调用任何其它函数或子程序
-!     - mktend (mod_legsym) : Compute Nonlinear terms    纯数组计算 没有调用任何其它函数或子程序
+!     - mktend (mod_legsym) : Compute Nonlinear terms    纯数组计算 没有调用任何其它函数或子程序 但"use legsym"
 !
 !     Others: <--- All neglected for OpenACC testing
 !     - filter_zonal_waves  : 纬向滤波
@@ -2974,19 +2989,32 @@ end subroutine master
 !     - altcs               : 诊断cs切片时转换alt grid
 !
 !     MPI: mpsumsc; mpgagp; mpsum; mpgacs <--- All removed
+!
+!     本质上此子程序的输入: sd,st,sz,sp
+!           中间计算并修改: gd,gt,gz,gp,gpj,gu,gv,gut,gvt,gke,gfu,gfv
+!      最终得到4变量的倾向: spf,sdf,szf,stf (local)
+!             再复制给全局: spt,sdt,szt,stt (pumamod)
 !     ====================
 
       subroutine gridpoint
-      use pumamod
+      use pumamod, only: sd,st,sz,sp, sdt,stt,szt,spt,   &  ! 前4个是总体的最根本input; 后四个是最根本output
+                         gd,gt,gz,gp,gpj,gu,gv,          &  ! 这些变量都会被update
+                         gut,gvt,gke,gfu,gfv,            &  ! 这些变量都会被update
+                         NLON,NLAT,NLEV,NLPP,NHOR,NRSP,NESP,trigs
       implicit none
 
-      real, dimension(NLON,NLPP,NLEV) :: gtn
-      real, dimension(NHOR)           :: gvpp
-      real, dimension(NLON,NLPP)      :: gpmt
-      real, dimension(NESP,NLEV)      :: sdf
-      real, dimension(NESP,NLEV)      :: stf
-      real, dimension(NESP,NLEV)      :: szf
-      real, dimension(NESP)           :: spf
+      ! 在calcgp中重要的传递变量
+      real, dimension(NLON,NLPP,NLEV) :: gtn    ! tempurature
+      real, dimension(NHOR)           :: gvpp   ! 动量的垂直积分 最终决定Ps的倾向spf
+      real, dimension(NLON,NLPP)      :: gpmt   ! Ps
+
+      ! 此子程序最终计算出的4变量的倾向 最终要赋值给sdt,stt,szt,spt
+      real, dimension(NESP,NLEV)      :: sdf    ! tendency of div
+      real, dimension(NESP,NLEV)      :: stf    ! tendency of temperature
+      real, dimension(NESP,NLEV)      :: szf    ! tendency of vor
+      real, dimension(NESP)           :: spf    ! tendency of surface pressure
+
+      ! 用于最后diag时用的
       real, dimension(NLON,NLAT)      :: zgp
       real, dimension(NHOR)           :: zgpp
       real, dimension(NLAT,NLEV)      :: zcs  !XW(2017-4-7): remove "(kind=4)" for zcs and zsp
@@ -3019,7 +3047,7 @@ end subroutine master
       enddo
       !$OMP end sections
 
-      !$OMP single
+      !---$OMP single
 
       ! 纬向FFT滤波
       !if (lselect) then
@@ -3047,7 +3075,7 @@ end subroutine master
       !  enddo
       !endif
 
-      !$OMP end single
+      !---$OMP end single
 
       !$OMP do collapse(2)
       do jlat = 1 , NLPP
@@ -3060,19 +3088,19 @@ end subroutine master
 
       !$OMP sections
       !$OMP section
-      call fc2gp(gu ,NLON,NLPP*NLEV)
+      call fc2gp(gu ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call fc2gp(gv ,NLON,NLPP*NLEV)
+      call fc2gp(gv ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call fc2gp(gt ,NLON,NLPP*NLEV)
+      call fc2gp(gt ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call fc2gp(gd ,NLON,NLPP*NLEV)
+      call fc2gp(gd ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call fc2gp(gz ,NLON,NLPP*NLEV)
+      call fc2gp(gz ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call fc2gp(gpj,NLON,NLPP)
+      call fc2gp(gpj,NLON,NLPP,trigs)
       !$OMP section
-      call fc2gp(gpmt,NLON,NLPP)
+      call fc2gp(gpmt,NLON,NLPP,trigs)
       !$OMP end sections
 
       !$OMP single
@@ -3085,19 +3113,19 @@ end subroutine master
 
       !$OMP sections
       !$OMP section
-      call gp2fc(gtn ,NLON,NLPP*NLEV)
+      call gp2fc(gtn ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call gp2fc(gut ,NLON,NLPP*NLEV)
+      call gp2fc(gut ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call gp2fc(gvt ,NLON,NLPP*NLEV)
+      call gp2fc(gvt ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call gp2fc(gfv ,NLON,NLPP*NLEV)
+      call gp2fc(gfv ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call gp2fc(gfu ,NLON,NLPP*NLEV)
+      call gp2fc(gfu ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call gp2fc(gke ,NLON,NLPP*NLEV)
+      call gp2fc(gke ,NLON,NLPP*NLEV,trigs)
       !$OMP section
-      call gp2fc(gvpp,NLON,NLPP     )
+      call gp2fc(gvpp,NLON,NLPP     ,trigs)
       !$OMP end sections
 
       !$OMP single
@@ -3119,8 +3147,9 @@ end subroutine master
 
       !$OMP do
       do jlev = 1 , NLEV
-         call mktend(sdf(:,jlev),stf(:,jlev),szf(:,jlev),gtn(:,:,jlev),&
-                     gfu(:,jlev),gfv(:,jlev),gke(:,jlev),gut(:,jlev),gvt(:,jlev))
+         call mktend(sdf(:,jlev),stf(:,jlev),szf(:,jlev),   &  ! these are THE 3 intent(out) variables
+                     gtn(:,:,jlev),gfu(:,jlev),gfv(:,jlev), &  ! there are 6 intent(in) variables 
+                     gke(:,jlev),gut(:,jlev),gvt(:,jlev))
       enddo
       !$OMP end do
       !$OMP end parallel
@@ -3128,15 +3157,16 @@ end subroutine master
       ! 实际上未加 暂时注释掉
       !if (nruido > 0) call stepruido      ! 在运行中是否还要加随机扰动? 这里计算ruido数组
 
+      ! 这是关键--要传递给spectral的4变量倾向
       spt   = spf    !call mpsumsc(spf,spt,1)
-      stt   = stf    !call mpsumsc(stf,stt,NLEV)
       sdt   = sdf    !call mpsumsc(sdf,sdt,NLEV)
       szt   = szf    !call mpsumsc(szf,szt,NLEV)
+      stt   = stf    !call mpsumsc(stf,stt,NLEV)
 
 ! 为OpenACC测试暂时关闭 打开第一列叹号就是原来的优化带注释
 !
 !      if (mod(nstep,ndiag) == 0) then
-!         call fc2gp(gp,NLON,NLPP)
+!         call fc2gp(gp,NLON,NLPP,trigs)
 !         zgpp(:) = exp(gp)                ! LnPs -> Ps
 !         !call mpgagp(zgp,zgpp,1)         ! zgp = Ps (full grid)
 !         zgp = reshape(zgpp,(/NLON,NLAT/))! zgp = Ps (full grid)
@@ -3148,7 +3178,7 @@ end subroutine master
 !         !   call guigt(gt)
 !         !endif
 !         zgpp(:) =  zgpp(:) - 1.0         ! Mean(LnPs) = 0  <-> Mean(Ps) = 1
-!         call gp2fc(zgpp,NLON,NLPP)
+!         call gp2fc(zgpp,NLON,NLPP,trigs)
 !         call fc2sp(zgpp,span)
 !
 !         !call mpsum(span,1)              ! span = Ps spectral
@@ -3181,9 +3211,14 @@ end subroutine master
 !     高密度计算模块
 !     深挖scalable computing
 !     纯数组计算 没有调用任何其它函数和子程序
+!     intent(in   ) : gpm,gpj, gu,gv,gd,gz,gt
+!     intent(inout) : gfu,gfv
+!     intent(  out) : gtn,gvp
 !     =================
-      subroutine calcgp(gtn,gpm,gvp)
-      use pumamod
+      subroutine calcgp(gtn,gpm,gvp)            ! gpm进 gtn/gvp出
+      use pumamod, only: gfu, gfv,           &  ! 注意这两个变量也要被修改
+                         gu,gv,gd,gz,gt,gpj, &  ! Others just intent(in)
+                         t0d,tkp,rdsig,rcsq,c,dsigma,sigmh,akap,ruidop, NLEV,NLEM,NHOR,NRUIDO
       implicit none
 
 !     Comments by Torben Kunz and Guido Schroeder
@@ -3234,9 +3269,9 @@ end subroutine master
 !     aINTb(A)dsigma :<=> the integral of A over the interval [a,b]
 !                         with respect to sigma
 
-      real gtn(NHOR,NLEV)
-      real gpm(NHOR)
-      real gvp(NHOR)
+      real, intent(out) :: gtn(NHOR,NLEV)
+      real, intent(in ) :: gpm(NHOR)
+      real, intent(out) :: gvp(NHOR)
 
       ! local
       real zsdotp(NHOR,NLEM),zsumd(NHOR),zsumvp(NHOR),zsumvpm(NHOR)
@@ -3423,10 +3458,17 @@ end subroutine master
 !     - vdiff                 : 计算垂直方向的耗散 (div, vor, T)
 !     - mkdheat               : 对耗散动能的能量回收，加热周围环境
 !     MPI: mpgallsp, mpsumbcr, mrdiff
+!
+!     Key Info
+!     Input  : intent(inout)  : 倾向spt,sdt,szt,stt; 前一时刻spm,sdm,szm,stm; 当前时刻spp,sdp,szp,stp
+!              intent(in   )  : 其它pumamod引入的变量都只是引用 不做任何修改
+!     Output : intent(out  )  : 新时刻sp,sd,sz,st <--- 就是最新的当前时刻spp,sdp,szp,stp
 !     ===================
 
       subroutine spectral
-      use pumamod
+      use pumamod, only: sp,sd,sz,st, spt,sdt,szt,stt, spm,sdm,szm,stm, spp,sdp,szp,stp, &
+                         sak,sop,srp1,srp2,nindex,srcn,damp,fric,t0,xlphi,xlt,bm1,dsigma,&
+                         nstep,pac,tac,nhelsua,plavor,pnu,alpha,delt,delt2,mloop, NSPP,NLEV
       implicit none
 
 !*    Add adiabatic and diabatic tendencies - perform leapfrog
@@ -3475,18 +3517,23 @@ end subroutine master
       real zdm(NSPP,NLEV) ! new sdm
       real zzm(NSPP,NLEV) ! new szm
       real ztm(NSPP,NLEV) ! new stm
+
       real zwp(NSPP)      ! timefilter delta pm
       real zwd(NSPP,NLEV) ! timefilter delta sd
       real zwz(NSPP,NLEV) ! timefilter delta sz
       real zwt(NSPP,NLEV) ! timefilter delta st
+
       real zsrp(NSPP)     ! restoring temperature (mean + annual cycle)
+                          ! 此变量在计算牛顿冷却时用的临时变量
 
-      real zgt(NSPP,NLEV) ! work array
+      real zgt(NSPP,NLEV) ! work array 临时工作数组
 
+      ! For OpenACC: 以下变量似乎都没有使用
       real,allocatable :: zstte(:,:,:) ! temp. tendencies for energy diag.
       real,allocatable :: zszte(:,:,:) ! vort. tendencies for energy recycling
       real,allocatable :: zsdte(:,:,:) ! div. tendencies for energy recycling
       real,allocatable :: zdps(:)      ! surf pressure for energy diag
+
       real,allocatable :: zsp(:)       ! surf pressure spectral
       real,allocatable :: zspf(:)      ! surf pressure spectral
       real,allocatable :: zspt(:)      ! surf pressure tendency 
@@ -3592,10 +3639,10 @@ end subroutine master
 
 !     5. Add tendencies
 
-      spp(:)   = spm(:) - delt2 * spt(:)     ! spt = -ln(ps) tendency
-      sdp(:,:) =   2.0 * sdt(:,:) - sdm(:,:) ! sdt = sdm + delt * tend.
-      szp(:,:) = delt2 * szt(:,:) + szm(:,:) ! vorticity
-      stp(:,:) = delt2 * stt(:,:) + stm(:,:) ! temperature
+      spp(:)   = spm(:) - delt2 * spt(:)     ! ln(ps) :  spt = -ln(ps) tendency
+      sdp(:,:) =   2.0 * sdt(:,:) - sdm(:,:) ! div    :  sdt = sdm + delt * tend.
+      szp(:,:) = delt2 * szt(:,:) + szm(:,:) ! vor
+      stp(:,:) = delt2 * stt(:,:) + stm(:,:) ! t
 
       ! 暂时关闭 for OpenACC testing
       ! checked, they are ALL 0 :-)
@@ -3766,9 +3813,9 @@ end subroutine master
    !       call sp2fc(zstt(1,jlev),zdtgp(1,jlev))
    !    enddo
    !    call sp2fc(zspf,zdps)
-   !    call fc2gp(ztgp,NLON,NLPP*NLEV)
-   !    call fc2gp(zdtgp,NLON,NLPP*NLEV)
-   !    call fc2gp(zdps,NLON,NLPP)
+   !    call fc2gp(ztgp,NLON,NLPP*NLEV,trigs)
+   !    call fc2gp(zdtgp,NLON,NLPP*NLEV,trigs)
+   !    call fc2gp(zdps,NLON,NLPP,trigs)
    !    zdps(:)=psurf*exp(zdps(:))
    !    zsum1(:)=0.
    !    do jlev=1,NLEV
@@ -3941,9 +3988,9 @@ end subroutine master
             call sp2fc(sd(1,jlev)   ,gd(1,jlev)   )
          endif
       enddo
-      call fc2gp(gt   ,NLON,NLPP*NLEV)
+      call fc2gp(gt   ,NLON,NLPP*NLEV,trigs)
       if (nconv > 0) then
-         call fc2gp(gd   ,NLON,NLPP*NLEV)
+         call fc2gp(gd   ,NLON,NLPP*NLEV,trigs)
       endif
 
 
@@ -3963,7 +4010,7 @@ end subroutine master
       endif
 
       !--- transform temperature tendencies to spectral space
-      call gp2fc(zgtt ,NLON,NLPP*NLEV)
+      call gp2fc(zgtt ,NLON,NLPP*NLEV,trigs)
       do jlev=1,NLEV
          call fc2sp(zgtt(1,jlev),zstf(1,jlev))
       enddo
@@ -3997,14 +4044,14 @@ end subroutine master
          call sp2fc(zsr12(1,jlev),zgr12(1,jlev))
          call sp2fc(st(1,jlev)   ,gt(1,jlev)   )
       enddo
-      call fc2gp(zgr12,NLON,NLPP*NLEV)
-      call fc2gp(gt   ,NLON,NLPP*NLEV)
+      call fc2gp(zgr12,NLON,NLPP*NLEV,trigs)
+      call fc2gp(gt   ,NLON,NLPP*NLEV,trigs)
 
 !     Newtonian cooling
 
       zgtt(:,:) = (zgr12(:,:) - gt(:,:)) * gtdamp(:,:)
 
-      call gp2fc(zgtt ,NLON,NLPP*NLEV)
+      call gp2fc(zgtt ,NLON,NLPP*NLEV,trigs)
       do jlev=1,NLEV
          call fc2sp(zgtt(1,jlev),zstf(1,jlev))
       enddo
@@ -4262,10 +4309,10 @@ end subroutine master
       enddo
       call sp2fc(zsptf,zgpst)
       call sp2fc(zspf,zgps)
-      call fc2gp(zgtt,NLON,NLPP*NLEV)
-      call fc2gp(zgt,NLON,NLPP*NLEV)
-      call fc2gp(zgps,NLON,NLPP)
-      call fc2gp(zgpst,NLON,NLPP)
+      call fc2gp(zgtt,NLON,NLPP*NLEV,trigs)
+      call fc2gp(zgt,NLON,NLPP*NLEV,trigs)
+      call fc2gp(zgps,NLON,NLPP,trigs)
+      call fc2gp(zgpst,NLON,NLPP,trigs)
       zgpst(:)=psurf*(exp(zgps(:)+delt2*zgpst(:))-exp(zgps(:)))/zdelt
       zgps(:)=psurf*exp(zgps(:))+zdelt*zgpst(:)
       zgtt(:,:)=ct*ww_scale*zgtt(:,:)
@@ -4315,9 +4362,9 @@ end subroutine master
        call sp2fc(zstf(:,jlev),zgt(:,jlev))
       enddo
       call sp2fc(zspf,zgps)
-      call fc2gp(zgtt,NLON,NLPP*NLEV)
-      call fc2gp(zgt,NLON,NLPP*NLEV)
-      call fc2gp(zgps,NLON,NLPP)
+      call fc2gp(zgtt,NLON,NLPP*NLEV,trigs)
+      call fc2gp(zgt,NLON,NLPP*NLEV,trigs)
+      call fc2gp(zgps,NLON,NLPP,trigs)
       zgps(:)=psurf*exp(zgps(:))
       zgtt(:,:)=ct*ww_scale*zgtt(:,:)
       do jlev=1,NLEV
@@ -4387,8 +4434,8 @@ end subroutine master
       do jlev = 1 , NLEV
          call dv2uv(zsd(1,jlev),zsz(1,jlev),zu(1,jlev),zv(1,jlev))
       enddo
-      call fc2gp(zu,NLON,NLPP*NLEV)
-      call fc2gp(zv,NLON,NLPP*NLEV)
+      call fc2gp(zu,NLON,NLPP*NLEV,trigs)
+      call fc2gp(zv,NLON,NLPP*NLEV,trigs)
 !
 !     b) add fricton tendencies and create new u and v
 !
@@ -4399,8 +4446,8 @@ end subroutine master
       do jlev = 1 , NLEV
          call dv2uv(zsd(1,jlev),zsz(1,jlev),zun(1,jlev),zvn(1,jlev))
       enddo
-      call fc2gp(zun,NLON,NLPP*NLEV)
-      call fc2gp(zvn,NLON,NLPP*NLEV)
+      call fc2gp(zun,NLON,NLPP*NLEV,trigs)
+      call fc2gp(zvn,NLON,NLPP*NLEV,trigs)
 !
 !     c) compute temperature tendency
 !
@@ -4431,10 +4478,10 @@ end subroutine master
       do jlev = 1 , NLEV
          call dv2uv(zsd(1,jlev),zsz(1,jlev),zun(1,jlev),zvn(1,jlev))
       enddo
-      call fc2gp(zun,NLON,NLPP*NLEV)
-      call fc2gp(zvn,NLON,NLPP*NLEV)
+      call fc2gp(zun,NLON,NLPP*NLEV,trigs)
+      call fc2gp(zvn,NLON,NLPP*NLEV,trigs)
       call sp2fc(zspf,zp)
-      call fc2gp(zp,NLON,NLPP)
+      call fc2gp(zp,NLON,NLPP,trigs)
       zp(:)=psurf*exp(zp(:))
 !
 !     b) compute loss of kinetic energy
@@ -4455,7 +4502,7 @@ end subroutine master
 !
 !     c) get the global average and transform it back
 !
-      call gp2fc(zdekin,NLON,NLPP*NLEV)
+      call gp2fc(zdekin,NLON,NLPP*NLEV,trigs)
       do jlev=1,NLEV
        call fc2sp(zdekin(:,jlev),zsdef(:,jlev))
       enddo
@@ -4465,7 +4512,7 @@ end subroutine master
       do jlev = 1 , NLEV
          call sp2fc(zsdef(1,jlev),zdekin(1,jlev))
       enddo
-      call fc2gp(zdekin,NLON,NLPP*NLEV)
+      call fc2gp(zdekin,NLON,NLPP*NLEV,trigs)
 !
 !     d) compute temperature tendency
 !
@@ -4479,9 +4526,9 @@ end subroutine master
       zdtdt2(:,:)=zdtdt2(:,:)/ct/ww_scale
       zdtdt3(:,:)=zdtdt3(:,:)/ct/ww_scale
 !
-      call gp2fc(zdtdt1,NLON,NLPP*NLEV)
-      call gp2fc(zdtdt2,NLON,NLPP*NLEV)
-      call gp2fc(zdtdt3,NLON,NLPP*NLEV)
+      call gp2fc(zdtdt1,NLON,NLPP*NLEV,trigs)
+      call gp2fc(zdtdt2,NLON,NLPP*NLEV,trigs)
+      call gp2fc(zdtdt3,NLON,NLPP*NLEV,trigs)
       do jlev=1,NLEV
        call fc2sp(zdtdt1(:,jlev),zstf1(:,jlev))
        call fc2sp(zdtdt2(:,jlev),zstf2(:,jlev))

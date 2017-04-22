@@ -1,1 +1,1 @@
-Makefile-pgfortran
+Makefile-gfortran

@@ -47,7 +47,7 @@ subroutine io_write_output
 
    !--- Surface Pressure ---
    call sp2fc(sp,x2d)
-   call fc2gp(x2d,NLON,NLAT)
+   call fc2gp(x2d,NLON,NLAT,trigs)
    call alt2reg(x2d,1)
    x2d = exp(x2d)*psurf    ! psurf=1011mb
    x2d = x2d / 100.0       ! Pa to hPa/mb
@@ -77,10 +77,10 @@ subroutine io_write_output
    do jlev = 1, NLEV
       ! div
       call sp2fc(sd(:,jlev),x3d(:,:,jlev))
-      call fc2gp(x3d(:,:,jlev),NLON,NLAT)
+      call fc2gp(x3d(:,:,jlev),NLON,NLAT,trigs)
       ! vor
       call sp2fc(sz(:,jlev),y3d(:,:,jlev))
-      call fc2gp(y3d(:,:,jlev),NLON,NLAT)
+      call fc2gp(y3d(:,:,jlev),NLON,NLAT,trigs)
    end do
 
    offs = 0.0
@@ -96,7 +96,7 @@ subroutine io_write_output
    !--- Temperature ---
    do jlev = 1, NLEV
       call sp2fc(st(:,jlev),x3d(:,:,jlev))
-      call fc2gp(x3d(:,:,jlev),NLON,NLAT)
+      call fc2gp(x3d(:,:,jlev),NLON,NLAT,trigs)
       x3d(:,:,jlev) = x3d(:,:,jlev) * ct + t0(jlev)*ct
    end do
 

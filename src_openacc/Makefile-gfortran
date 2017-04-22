@@ -6,7 +6,7 @@
 #=====================
 # GNU gfortran
 F90    = gfortran
-FLAGS  = -Ofast #-Wall #-pg 
+FLAGS  = -O3 #-Ofast #-Wall #-pg 
 OTHERS = -fopenmp -ffree-line-length-none
 #USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
 
@@ -36,7 +36,7 @@ OBJ = pkugcm.o mod_fft.o mod_legsym.o mod_restart.o mod_io.o
 	${F90} -c $(FLAGS) $(OTHERS) $<
 
 pkugcm.x:	$(OBJ)
-	${F90} $(FLAGS) -o pkugcm.x $(OBJ)
+	${F90} $(FLAGS) $(OTHERS) -o pkugcm.x $(OBJ)
 
 pkugcm.o:      pkugcm.f08
 mod_fft.o:     mod_fft.f08
