@@ -884,6 +884,14 @@ nstep1 = nstep ! remember 1.st timestep
 ! the leapfrog block in subroutine spectral can be paralled
 mloop = .TRUE.
 
+! Xinyu added for OpenACC
+!$acc data copyin(sd,st,sz,sp, sdt,stt,szt,spt, sdp,stp,szp,spp, sdm,stm,szm,spm, &
+!$acc             gd,gt,gz,gp,gpj,gu,gv,gut,gvt,gke,gfu,gfv, &
+!$acc             t0d,tkp,rdsig,rcsq,c,dsigma,sigmh,akap,ruidop, &
+!$acc             sak,sop,srp1,srp2,nindex,srcn,damp,fric,delt,delt2,mloop, &
+!$acc             t0,xlphi,bm1,xlt,nstep,pac,tac,nhelsua,plavor,alpha, &
+!$acc             NLON,NLAT,NLEV,NLEM,NLPP,NSPP,NHPP,NHOR,NRSP,NESP,NTP1,trigs,qq,qe,qc,qx)
+
 do jstep = 1 , nrun
 
    nstep = nstep + 1
@@ -892,12 +900,17 @@ do jstep = 1 , nrun
 !  * calculation of non-linear quantities in grid point space *
 !  ************************************************************
 
+!$acc update device(nstep)
+
    call gridpoint
    !if (mypid == NROOT) then
       !if (mod(nstep,nafter)==0 .and. noutput==1) call outsp
       !if (mod(nstep,ndiag )==0) call diag
       !if (ncu > 0) call checkunit
-      if (mod(nstep,ndiag )==0)  print "(i10,2f10.4)", nstep, maxval(gu), minval(gu)
+      if (mod(nstep,ndiag )==0) then
+         !$acc update self(gu)
+         print "(i10,2f10.4)", nstep, maxval(gu), minval(gu)
+      end if
    !endif
 
 !  ******************************
@@ -910,8 +923,13 @@ do jstep = 1 , nrun
    !***********************
    ! XW: pku output format
    !***********************
-   if (mod(nstep,nafter)==0 .and. noutput==2) call io_write_output
+   if (mod(nstep,nafter)==0 .and. noutput==2) then
+      !$acc update self(sp,sd,sz,st,gu,gv)
+      call io_write_output
+   end if
 enddo
+
+!$acc end data
 
 end subroutine master
 
@@ -3023,6 +3041,10 @@ end subroutine master
       real :: sec
       integer :: jlon, jlat, jlev
 
+!$acc kernels present(sd,st,sz,sp, sdt,stt,szt,spt, &
+!$acc                 gd,gt,gz,gp,gpj,gu,gv,gut,gvt,gke,gfu,gfv, &
+!$acc                 NLON,NLAT,NLEV,NLPP,NHOR,NRSP,NESP,trigs)
+
       !$OMP parallel
 
       !$OMP sections
@@ -3202,7 +3224,9 @@ end subroutine master
 !            !endif
 !         !endif
 !      endif
-      return
+
+!$acc end kernels
+
       end subroutine gridpoint
 
 
@@ -3283,7 +3307,9 @@ end subroutine master
 
       integer :: jlev,jlej
 
-!$acc kernels
+!$acc kernels present(gd,gt,gz,gpj,gu,gv,gfu,gfv, &
+!$acc                 t0d,tkp,rdsig,rcsq,c,dsigma,sigmh,akap,ruidop, &
+!$acc                 NLEV,NLEM)
 
 !     1.
 !     1.1 zvgpg: (u,v) * grad(ln(ps))
@@ -3376,13 +3402,13 @@ end subroutine master
 !                    [(u,v)*grad(ln(ps)) - (1/sigma)*0INTsigma(A)dsigma]
 
          gtn(:,jlev) = gtn(:,jlev)                                      &
-     &       + akap * gt(:,jlev) * (zvgpg(:,jlev) - ztptb)
+             + akap * gt(:,jlev) * (zvgpg(:,jlev) - ztptb)
 
 !        3.2.4 kappa*T0 *
 !                  [(u,v)*grad(ln(ps)) - (1/sigma)*0INTsigma(A-D)dsigma]
 
          gtn(:,jlev) = gtn(:,jlev)                                      &
-     &       + tkp(jlev) * (zvgpg(:,jlev) - ztpta)
+             + tkp(jlev) * (zvgpg(:,jlev) - ztpta)
 
 !        3.2.5 Calculate vertical T' advection on full levels by
 !              averaging two half level advection terms (gtd, calculated
@@ -3394,19 +3420,19 @@ end subroutine master
 !              averaging two half level advection terms.
 
          gtn(:,jlev) = gtn(:,jlev)                                      &
-     &       - rdsig(jlev) * (gtd(:,jlev) + gtd(:,jlev-1)               &
-     &         +(sigmh(jlev)   * gvp - zsumvp)  * t0d(jlev)            &
-     &         +(sigmh(jlev-1) * gvp - zsumvpm) * t0d(jlev-1))
+                       - rdsig(jlev) * (gtd(:,jlev) + gtd(:,jlev-1)     &
+                       + (sigmh(jlev)   * gvp - zsumvp)  * t0d(jlev)    &
+                       + (sigmh(jlev-1) * gvp - zsumvpm) * t0d(jlev-1))
 
 !        3.2.7 terms Fv, Fu, see HS75 (equations following eq. (5));
 !              vertical advection terms interpolated to full levels by
 !              averaging two half level advection terms.
 
          gfv(:,jlev) = - gu(:,jlev)*gz(:,jlev) - gpj(:)*gt(:,jlev)      &
-     &                 - rdsig(jlev)*(gvd(:,jlev) + gvd(:,jlev-1))
+                       - rdsig(jlev)*(gvd(:,jlev) + gvd(:,jlev-1))
 
          gfu(:,jlev) =   gv(:,jlev)*gz(:,jlev) - gpm(:)*gt(:,jlev)      &
-     &                 - rdsig(jlev)*(gud(:,jlev) + gud(:,jlev-1))
+                       - rdsig(jlev)*(gud(:,jlev) + gud(:,jlev-1))
       enddo
 
 !     3.3 bottom level
@@ -3428,15 +3454,15 @@ end subroutine master
 !           lower boundary (sigma == 1).
 
       gtn(:,NLEV) = gt(:,NLEV) * gd(:,NLEV)                            &
-     &            + akap*gt(:,NLEV)*(zvgpg(:,NLEV)-ztptb)              &
-     &            + tkp(NLEV)*(zvgpg(:,NLEV)-ztpta)                    &
-     &            - rdsig(NLEV) * (gtd(:,NLEM)                         &
-     &            + t0d(NLEM)*(sigmh(NLEM)*gvp-zsumvp))
+                  + akap*gt(:,NLEV)*(zvgpg(:,NLEV)-ztptb)              &
+                  + tkp(NLEV)*(zvgpg(:,NLEV)-ztpta)                    &
+                  - rdsig(NLEV) * (gtd(:,NLEM)                         &
+                  + t0d(NLEM)*(sigmh(NLEM)*gvp-zsumvp))
 
-      gfv(:,NLEV) = -gu(:,NLEV) * gz(:,NLEV) - gpj(:) * gt(:,NLEV)      &
-     &              - rdsig(NLEV) * gvd(:,NLEM)
-      gfu(:,NLEV) =  gv(:,NLEV) * gz(:,NLEV) - gpm(:) * gt(:,NLEV)      &
-     &              - rdsig(NLEV) * gud(:,NLEM)
+      gfv(:,NLEV) = -gu(:,NLEV) * gz(:,NLEV) - gpj(:) * gt(:,NLEV)     &
+                    - rdsig(NLEV) * gvd(:,NLEM)
+      gfu(:,NLEV) =  gv(:,NLEV) * gz(:,NLEV) - gpm(:) * gt(:,NLEV)     &
+                    - rdsig(NLEV) * gud(:,NLEM)
 
 !     3.3.3 Add gaussian noise to T (controlled by nruido)
 
@@ -3550,7 +3576,9 @@ end subroutine master
       real     :: zampl, zcp, zsum3, zt, ztp, zztm
       integer  :: jhor, jsp, jn, jlon, jlat, jlev
 
-!$acc kernels
+!$acc kernels present(sd,st,sz,sp, sdt,stt,szt,spt, sdp,stp,szp,spp, sdm,stm,szm,spm, &
+!$acc                 sak,sop,srp1,srp2,nindex,srcn,damp,fric,delt,delt2,mloop, &
+!$acc                 t0,xlphi,bm1,xlt,nstep,pac,tac,nhelsua,plavor,alpha,NLEV,NSPP)
 
 !     0. Special code for experiments with mode filtering
 

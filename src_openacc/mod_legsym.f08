@@ -408,6 +408,7 @@ end subroutine dv2uv
 ! =================
 
 subroutine mktend(d,t,z,tn,fu,fv,ke,ut,vt)
+!$acc routine worker
 use pumamod, only: qq,qe,qc,qx, nlon,nlat,nhpp,ntp1,nesp
 implicit none
 
@@ -428,6 +429,8 @@ integer :: w ! Loop index for spectral mode
 integer :: e ! End index for w
 
 complex :: fus,fua,fvs,fva,kes,kea,tns,tna,uts,uta,vts,vta
+
+!$acc kernels present(qq,qe,qc,qx,NLON,NLAT,NHPP,NTP1,NESP)
 
 d(:) = (0.0,0.0) ! divergence
 t(:) = (0.0,0.0) ! temperature
@@ -453,6 +456,9 @@ do l = 1 , nhpp  ! process pairs of Nort-South latitudes
       w = e + 1
    enddo ! m
 enddo ! l
+
+!$acc end kernels
+
 end subroutine mktend
 
 

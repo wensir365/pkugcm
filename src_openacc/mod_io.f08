@@ -32,7 +32,10 @@ end module io
 
 subroutine io_write_output
    use io
-   use pumamod
+   use pumamod, only: sp,sd,sz,st,gu,gv,                 &
+                      psurf,t0,ga,gascon,ww_scale,cv,ct, &
+                      csq,sigma,sigmh,                   &
+                      NLON,NLAT,NLEV,trigs
    implicit none
 
    ! local
