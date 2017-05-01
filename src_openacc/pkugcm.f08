@@ -3049,31 +3049,19 @@ end subroutine master
 !$acc                 gd,gt,gz,gp,gpj,gu,gv,gut,gvt,gke,gfu,gfv, &
 !$acc                 NLON,NLAT,NLEV,NLPP,NHOR,NRSP,NESP,trigs)
 
-      !$OMP parallel
-
-      !$OMP sections
-      !$OMP section
       do jlev = 1 , NLEV
          call sp2fc(sd(:,jlev),gd(:,jlev))
-      end do
-      !$OMP section
-      do jlev = 1 , NLEV
          call sp2fc(st(:,jlev),gt(:,jlev))
-      end do
-      !$OMP section
-      do jlev = 1 , NLEV
          call sp2fc(sz(:,jlev),gz(:,jlev))
-      enddo
-
-      !$OMP section
-      call sp2fc(sp,gp)                                          ! lnPs
-      call sp2fcdmu(sp,gpj)                                      ! d(lnPs) / d(mu)
-      do jlev = 1 , NLEV
          call dv2uv(sd(:,jlev),sz(:,jlev),gu(:,jlev),gv(:,jlev)) ! div,vor->ucos(phi),vcos(phi)
       enddo
-      !$OMP end sections
 
-      !---$OMP single
+      call sp2fc(sp,gp)                                          ! lnPs
+      call sp2fcdmu(sp,gpj)                                      ! d(lnPs) / d(mu)
+
+      !do jlev = 1 , NLEV
+      !enddo
+
 
       ! 纬向FFT滤波
       !if (lselect) then
@@ -3101,60 +3089,35 @@ end subroutine master
       !  enddo
       !endif
 
-      !---$OMP end single
-
-      !$OMP do collapse(2)
       do jlat = 1 , NLPP
          do jlon = 1 , NLON-1 , 2
            gpmt(jlon  ,jlat) = -gp(jlon+1+(jlat-1)*NLON) * ((jlon-1)/2)
            gpmt(jlon+1,jlat) =  gp(jlon  +(jlat-1)*NLON) * ((jlon-1)/2)
          end do
       end do
-      !$OMP end do
 
-      !$OMP sections
-      !$OMP section
       call fc2gp(gu ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call fc2gp(gv ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call fc2gp(gt ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call fc2gp(gd ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call fc2gp(gz ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call fc2gp(gpj,NLON,NLPP,trigs)
-      !$OMP section
       call fc2gp(gpmt,NLON,NLPP,trigs)
-      !$OMP end sections
 
-      !$OMP single
       call calcgp(gtn,gpmt,gvpp)
 
       gut(:,:) = gu(:,:) * gt(:,:)
       gvt(:,:) = gv(:,:) * gt(:,:)
       gke(:,:) = gu(:,:) * gu(:,:) + gv(:,:) * gv(:,:)
-      !$OMP end single
 
-      !$OMP sections
-      !$OMP section
       call gp2fc(gtn ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call gp2fc(gut ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call gp2fc(gvt ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call gp2fc(gfv ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call gp2fc(gfu ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call gp2fc(gke ,NLON,NLPP*NLEV,trigs)
-      !$OMP section
       call gp2fc(gvpp,NLON,NLPP     ,trigs)
-      !$OMP end sections
 
-      !$OMP single
       call fc2sp(gvpp,spf)
 
       ! 纬向滤波
@@ -3169,16 +3132,12 @@ end subroutine master
       !      call filter_zonal_waves(gke(:,jlev))
       !   enddo
       !endif
-      !$OMP end single
 
-      !$OMP do
       do jlev = 1 , NLEV
          call mktend(sdf(:,jlev),stf(:,jlev),szf(:,jlev),   &  ! these are THE 3 intent(out) variables
                      gtn(:,:,jlev),gfu(:,jlev),gfv(:,jlev), &  ! there are 6 intent(in) variables 
                      gke(:,jlev),gut(:,jlev),gvt(:,jlev))
       enddo
-      !$OMP end do
-      !$OMP end parallel
 
       ! 实际上未加 暂时注释掉
       !if (nruido > 0) call stepruido      ! 在运行中是否还要加随机扰动? 这里计算ruido数组

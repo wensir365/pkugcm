@@ -7,7 +7,7 @@
 # GNU gfortran
 F90    = gfortran
 FLAGS  = -O3 #-Ofast #-Wall #-pg 
-OTHERS = -fopenmp -ffree-line-length-none -fbacktrace
+OTHERS = -fopenmp #-ffree-line-length-none -fbacktrace
 #USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
 
 # PGI pgfortran
