@@ -207,11 +207,15 @@ end subroutine sp2fc
 
 ! sp2fc_nlev与上面的sp2fc的唯一区别是增加垂向循环
 ! XW: for better performance in OpenACC
-subroutine sp2fc_nlev(sp,fc) ! Spectral to Fourier
-use pumamod, only: qi, nlon,nlat,nlev,nhpp,ntp1,ncsp
+subroutine sp2fc_nlev(sp,fc,   qi, nlon,nlat,nlev,nhpp,ntp1,ncsp) ! Spectral to Fourier
+!$---acc routine worker
 implicit none
 complex, dimension(ncsp,nlev),      intent(in ) :: sp   ! Coefficients of spherical harmonics
 complex, dimension(nlon,nhpp,nlev), intent(out) :: fc   ! Fourier coefficients
+
+real,    dimension(ncsp,nhpp),      intent(in ) :: qi
+integer,                            intent(in ) :: nlon,nlat,nlev,nhpp,ntp1,ncsp
+
 ! local
 integer :: l ! Loop index for latitude
 integer :: m ! Loop index for zonal wavenumber m
@@ -235,9 +239,7 @@ do jlev = 1, NLEV
       enddo ! m
    enddo ! l
 end do
-
 end subroutine sp2fc_nlev
-
 
 ! ===================
 ! SUBROUTINE SP2FCDMU
@@ -438,14 +440,18 @@ end subroutine dv2uv
 
 ! dv2uv_nlev与上面的dv2uv的唯一区别是增加垂向循环
 ! XW: for better performance in OpenACC
-subroutine dv2uv_nlev(pd,pz,pu,pv)
-use pumamod, only: qu,qv, nlon,nlat,nlev,nhpp,ntru,ntp1,nesp, plavor
+subroutine dv2uv_nlev(pd,pz,pu,pv,   qu,qv, nlon,nlat,nlev,nhpp,ntru,ntp1,ncsp,nesp, plavor)
+!$---acc routine worker
 implicit none
 
 real, intent(in ) :: pd(2,nesp/2,nlev)    ! Spherical harmonics  of divergence
 real, intent(in ) :: pz(2,nesp/2,nlev)    ! Spherical harmonics  of vorticity
 real, intent(out) :: pu(2,nlon,nhpp,nlev) ! Fourier coefficients of u
 real, intent(out) :: pv(2,nlon,nhpp,nlev) ! Fourier coefficients of v
+
+real, intent(in)     :: qu(ncsp,nhpp),qv(ncsp,nhpp)
+integer, intent(in)  :: nlon,nlat,nlev,nhpp,ntru,ntp1,ncsp,nesp
+real, intent(in)     :: plavor
 
 real :: pzz(2,nesp/2,nlev)                ! tmp pz
 real :: zsave
@@ -463,9 +469,6 @@ pv = 0.0
 
 pzz = pz
 pzz(1,2,:) = pzz(1,2,:)-plavor
-
-!zsave = pz(1,2)           ! Save mode(0,1) of vorticity
-!pz(1,2) = zsave - plavor  ! Convert pz from absolute to relative vorticity
 
 do jlev = 1, NLEV
 do l = 1 , nhpp
@@ -549,7 +552,7 @@ do l = 1 , nhpp
    enddo ! m
 enddo ! l
 end do
-!pz(1,2) = zsave ! Restore pz to absolute vorticity
+
 end subroutine dv2uv_nlev
 
 ! =================
@@ -557,8 +560,8 @@ end subroutine dv2uv_nlev
 ! =================
 ! XW(2017/5/1): 把单层改为对垂向循环
 
-subroutine mktend(d,t,z,tn,fu,fv,ke,ut,vt)
-use pumamod, only: qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp
+subroutine mktend(d,t,z,tn,fu,fv,ke,ut,vt,   qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)
+!$---acc routine worker
 implicit none
 
 complex, intent(in) :: tn(nlon,nhpp,nlev)
@@ -571,6 +574,10 @@ complex, intent(in) :: vt(nlon,nhpp,nlev)
 complex, intent(out) :: d(nesp/2,nlev)
 complex, intent(out) :: t(nesp/2,nlev)
 complex, intent(out) :: z(nesp/2,nlev)
+
+real,    intent(in)  :: qq(ncsp,nhpp),qe(ncsp,nhpp),qc(ncsp,nhpp)
+complex, intent(in)  :: qx(ncsp,nhpp)
+integer, intent(in)  :: nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp
 
 integer :: l      ! Loop index for latitude
 integer :: m      ! Loop index for zonal wavenumber m

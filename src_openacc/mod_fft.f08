@@ -33,6 +33,7 @@
       !   call fftini(n)
       !endif
 
+
       call dfft8(a,a,n,lot)
       la = n / 8
       do while (la >= 4)
@@ -50,6 +51,8 @@
             call dfft2(a(1,l),base,n)
          enddo
       endif
+
+
       end subroutine gp2fc
 
 !     ================
