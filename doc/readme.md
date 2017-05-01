@@ -1,5 +1,12 @@
 # Change Log
 
+## 2017-May-1: Polish output function
+
+- write one single output file per year
+- you can enable/disable variables for output
+- you may disable GrADS control file at final stage
+- write NLC post-processing script, named "bin2nc.ncl", for converting binary to netCDF. Call it in run script.
+
 ## 2017-Apr-23: Isolate FFT&legsym from their own modules
 
 Major modifications were made during this week:

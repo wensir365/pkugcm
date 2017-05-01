@@ -681,12 +681,12 @@ end subroutine allocate_arrays
 !   ppp_define_real
 !   ppp_read_i
 !   ppp_read_r
-! - initpm (complex)    : 准备用于快速计算用的各种垂向数组
+! - initpm (complex)    : 准备用于快速计算用的各种垂向数组 *** 包括动量耗散扩线fric
 !   select_zonal_waves    如果T21的22个纬向波数(m)都打开(=1)，那么就关闭滤波；否则打开，有波数损失
 !   select_spectral_modes 如果T21的所有经向波数(m,n)都打开，那么就关闭滤波；否则打开，有模态损失
 !   set_vertical_grid     设置sigma levels (3 methods selectable)
 !   sponge              : 计算模式最顶层使用Rayleigh摩擦的系数fric(NLEV)
-! - initsi              : 半隐时间方案初始化
+! - initsi              : 半隐时间方案初始化  并打印sigma与高度信息
 ! - altlat              : csq(reg2d) to csq(alt2d)
 ! - initrandom          : 设随机数种子
 ! - initruido           : 分配ruido,ruidop数组
@@ -706,7 +706,7 @@ end subroutine allocate_arrays
 ! - printseed           : 打印随机种子(three sources: 1 namelist; 2 clock initialized; 3 restart file)
 ! - ntomin              : 时间步数 to 年月日时分
 ! - mastercpu_time      : 系统时间，现在只向月初对齐，以后可改为向2000年对齐
-! - io_open_output      : 新输出格式(GrADS)初始化
+! - io_open_output      : 新输出格式(GrADS)初始化 <--- XW(Apr/30/2017) Removed
 
 subroutine prolog
 use pumamod
@@ -826,9 +826,11 @@ endif
       write(40) zsig
    endif
 
-   if (noutput == 2) then
-      call io_open_output
-   end if
+   !XW(2017/04/28): put io_open_output into io_write_output implicitly
+   !if (noutput == 2) then
+   !   call io_open_output
+   !   print *, "prolog io_open_... worked!"
+   !end if
 
 !endif
 end subroutine prolog
@@ -907,10 +909,6 @@ do jstep = 1 , nrun
       !if (mod(nstep,nafter)==0 .and. noutput==1) call outsp
       !if (mod(nstep,ndiag )==0) call diag
       !if (ncu > 0) call checkunit
-      if (mod(nstep,ndiag )==0) then
-         !$acc update self(gu)
-         print "(i10,2f10.4)", nstep, maxval(gu), minval(gu)
-      end if
    !endif
 
 !  ******************************
@@ -919,13 +917,19 @@ do jstep = 1 , nrun
 
    call spectral
    !if (mod(nstep,nafter)==0 .and. noutput==1) call outgp
-
+   
    !***********************
    ! XW: pku output format
    !***********************
+!   if (mod(nstep,ndiag )==0) then
+      !$acc update self(gu)
+      print "(i10,2f10.4)", nstep, maxval(gu), minval(gu)
+!   end if
+
    if (mod(nstep,nafter)==0 .and. noutput==2) then
       !$acc update self(sp,sd,sz,st,gu,gv)
       call io_write_output
+      print *, "writting ... outputs"
    end if
 enddo
 
