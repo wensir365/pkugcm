@@ -205,6 +205,39 @@ do l = 1 , nhpp
 enddo ! l
 end subroutine sp2fc
 
+! sp2fc_nlev与上面的sp2fc的唯一区别是增加垂向循环
+! XW: for better performance in OpenACC
+subroutine sp2fc_nlev(sp,fc) ! Spectral to Fourier
+use pumamod, only: qi, nlon,nlat,nlev,nhpp,ntp1,ncsp
+implicit none
+complex, dimension(ncsp,nlev),      intent(in ) :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp,nlev), intent(out) :: fc   ! Fourier coefficients
+! local
+integer :: l ! Loop index for latitude
+integer :: m ! Loop index for zonal wavenumber m
+integer :: w ! Index for spectral mode
+integer :: e ! Index for last wavenumber
+integer :: jlev
+complex :: fs,fa
+
+fc = (0.0,0.0)
+
+do jlev = 1, NLEV
+   do l = 1 , nhpp
+      w = 1  
+      do m = 1 ,ntp1
+         e = w + ntp1 - m
+         fs = dot_product(qi(w  :e:2,l),sp(w  :e:2,jlev)) ! XW: qi derived from module "legsym"
+         fa = dot_product(qi(w+1:e:2,l),sp(w+1:e:2,jlev))
+         fc(m     ,l,jlev) = fs + fa
+         fc(m+nlat,l,jlev) = fs - fa
+         w = e + 1
+      enddo ! m
+   enddo ! l
+end do
+
+end subroutine sp2fc_nlev
+
 
 ! ===================
 ! SUBROUTINE SP2FCDMU
@@ -403,61 +436,177 @@ pz(1,2) = zsave ! Restore pz to absolute vorticity
 end subroutine dv2uv
 
 
+! dv2uv_nlev与上面的dv2uv的唯一区别是增加垂向循环
+! XW: for better performance in OpenACC
+subroutine dv2uv_nlev(pd,pz,pu,pv)
+use pumamod, only: qu,qv, nlon,nlat,nlev,nhpp,ntru,ntp1,nesp, plavor
+implicit none
+
+real, intent(in ) :: pd(2,nesp/2,nlev)    ! Spherical harmonics  of divergence
+real, intent(in ) :: pz(2,nesp/2,nlev)    ! Spherical harmonics  of vorticity
+real, intent(out) :: pu(2,nlon,nhpp,nlev) ! Fourier coefficients of u
+real, intent(out) :: pv(2,nlon,nhpp,nlev) ! Fourier coefficients of v
+
+real :: pzz(2,nesp/2,nlev)                ! tmp pz
+real :: zsave
+real :: unr,uni,usr,usi,vnr,vni,vsr,vsi
+real :: zdr,zdi,zzr,zzi
+
+integer :: l      ! Loop index for latitude
+integer :: m      ! Loop index for zonal wavenumber m
+integer :: n      ! Loop index for total wavenumber n
+integer :: w      ! Loop index for spectral mode
+integer :: jlev   ! main loop
+
+pu = 0.0
+pv = 0.0
+
+pzz = pz
+pzz(1,2,:) = pzz(1,2,:)-plavor
+
+!zsave = pz(1,2)           ! Save mode(0,1) of vorticity
+!pz(1,2) = zsave - plavor  ! Convert pz from absolute to relative vorticity
+
+do jlev = 1, NLEV
+do l = 1 , nhpp
+   w = 1
+   do m = 1 , ntp1
+      unr = 0.0 ! u - north - real
+      uni = 0.0 ! u - north - imag
+      usr = 0.0 ! u - south - real
+      usi = 0.0 ! u - south - imag
+      vnr = 0.0 ! v - north - real
+      vni = 0.0 ! v - north - imag
+      vsr = 0.0 ! v - south - real
+      vsi = 0.0 ! v - south - imag
+
+!     process two modes per iteration, one symmetric (m+n = even) and one anti
+!     we start the loop with (n=m), so the starting mode is always symmetric
+
+      do n = m , ntru , 2
+         zdr = qu(w,l) * pd(1,w,jlev)  ! symmetric mode
+         zdi = qu(w,l) * pd(2,w,jlev)
+         zzr = qv(w,l) * pzz(1,w,jlev)
+         zzi = qv(w,l) * pzz(2,w,jlev)
+         unr = unr + zzr + zdi
+         uni = uni + zzi - zdr
+         usr = usr - zzr + zdi
+         usi = usi - zzi - zdr
+         zzr = qu(w,l) * pzz(1,w,jlev)
+         zzi = qu(w,l) * pzz(2,w,jlev)
+         zdr = qv(w,l) * pd(1,w,jlev)
+         zdi = qv(w,l) * pd(2,w,jlev)
+         vnr = vnr + zzi - zdr
+         vni = vni - zzr - zdi
+         vsr = vsr + zzi + zdr
+         vsi = vsi - zzr + zdi
+         w = w + 1
+         zdr = qu(w,l) * pd(1,w,jlev)  ! antisymmetric mode
+         zdi = qu(w,l) * pd(2,w,jlev)
+         zzr = qv(w,l) * pzz(1,w,jlev)
+         zzi = qv(w,l) * pzz(2,w,jlev)
+         unr = unr + zzr + zdi
+         uni = uni + zzi - zdr
+         usr = usr + zzr - zdi
+         usi = usi + zzi + zdr
+         zzr = qu(w,l) * pzz(1,w,jlev)
+         zzi = qu(w,l) * pzz(2,w,jlev)
+         zdr = qv(w,l) * pd(1,w,jlev)
+         zdi = qv(w,l) * pd(2,w,jlev)
+         vnr = vnr + zzi - zdr
+         vni = vni - zzr - zdi
+         vsr = vsr - zzi - zdr
+         vsi = vsi + zzr - zdi
+         w = w + 1
+      enddo
+      if (n == ntp1) then         ! additional symmetric mode
+         zdr = qu(w,l) * pd(1,w,jlev)  ! if (ntp1-m) is even
+         zdi = qu(w,l) * pd(2,w,jlev)
+         zzr = qv(w,l) * pzz(1,w,jlev)
+         zzi = qv(w,l) * pzz(2,w,jlev)
+         unr = unr + zzr + zdi
+         uni = uni + zzi - zdr
+         usr = usr - zzr + zdi
+         usi = usi - zzi - zdr
+         zzr = qu(w,l) * pzz(1,w,jlev)
+         zzi = qu(w,l) * pzz(2,w,jlev)
+         zdr = qv(w,l) * pd(1,w,jlev)
+         zdi = qv(w,l) * pd(2,w,jlev)
+         vnr = vnr + zzi - zdr
+         vni = vni - zzr - zdi
+         vsr = vsr + zzi + zdr
+         vsi = vsi - zzr + zdi
+         w = w + 1
+      endif
+      pu(1,m     ,l,jlev) = unr
+      pu(2,m     ,l,jlev) = uni
+      pu(1,m+nlat,l,jlev) = usr
+      pu(2,m+nlat,l,jlev) = usi
+      pv(1,m     ,l,jlev) = vnr
+      pv(2,m     ,l,jlev) = vni
+      pv(1,m+nlat,l,jlev) = vsr
+      pv(2,m+nlat,l,jlev) = vsi
+   enddo ! m
+enddo ! l
+end do
+!pz(1,2) = zsave ! Restore pz to absolute vorticity
+end subroutine dv2uv_nlev
+
 ! =================
 ! SUBROUTINE MKTEND
 ! =================
+! XW(2017/5/1): 把单层改为对垂向循环
 
 subroutine mktend(d,t,z,tn,fu,fv,ke,ut,vt)
-!$acc routine worker
-use pumamod, only: qq,qe,qc,qx, nlon,nlat,nhpp,ntp1,nesp
+use pumamod, only: qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp
 implicit none
 
-complex, intent(in) :: tn(nlon,nhpp)
-complex, intent(in) :: fu(nlon,nhpp)
-complex, intent(in) :: fv(nlon,nhpp)
-complex, intent(in) :: ke(nlon,nhpp)
-complex, intent(in) :: ut(nlon,nhpp)
-complex, intent(in) :: vt(nlon,nhpp)
+complex, intent(in) :: tn(nlon,nhpp,nlev)
+complex, intent(in) :: fu(nlon,nhpp,nlev)
+complex, intent(in) :: fv(nlon,nhpp,nlev)
+complex, intent(in) :: ke(nlon,nhpp,nlev)
+complex, intent(in) :: ut(nlon,nhpp,nlev)
+complex, intent(in) :: vt(nlon,nhpp,nlev)
 
-complex, intent(out) :: d(nesp/2)
-complex, intent(out) :: t(nesp/2)
-complex, intent(out) :: z(nesp/2)
+complex, intent(out) :: d(nesp/2,nlev)
+complex, intent(out) :: t(nesp/2,nlev)
+complex, intent(out) :: z(nesp/2,nlev)
 
-integer :: l ! Loop index for latitude
-integer :: m ! Loop index for zonal wavenumber m
-integer :: w ! Loop index for spectral mode
-integer :: e ! End index for w
+integer :: l      ! Loop index for latitude
+integer :: m      ! Loop index for zonal wavenumber m
+integer :: w      ! Loop index for spectral mode
+integer :: e      ! End index for w
+integer :: jlev   ! Main loop along with Z/level
 
 complex :: fus,fua,fvs,fva,kes,kea,tns,tna,uts,uta,vts,vta
 
-!$acc kernels present(qq,qe,qc,qx,NLON,NLAT,NHPP,NTP1,NESP)
 
-d(:) = (0.0,0.0) ! divergence
-t(:) = (0.0,0.0) ! temperature
-z(:) = (0.0,0.0) ! vorticity
+d = (0.0,0.0) ! divergence
+t = (0.0,0.0) ! temperature
+z = (0.0,0.0) ! vorticity
 
-do l = 1 , nhpp  ! process pairs of Nort-South latitudes
-   w = 1
-   do m = 1 , ntp1
-      kes = ke(m,l) + ke(m+nlat,l) ; kea = ke(m,l) - ke(m+nlat,l)
-      fvs = fv(m,l) + fv(m+nlat,l) ; fva = fv(m,l) - fv(m+nlat,l)
-      fus = fu(m,l) + fu(m+nlat,l) ; fua = fu(m,l) - fu(m+nlat,l)
-      uts = ut(m,l) + ut(m+nlat,l) ; uta = ut(m,l) - ut(m+nlat,l)
-      vts = vt(m,l) + vt(m+nlat,l) ; vta = vt(m,l) - vt(m+nlat,l)
-      tns = tn(m,l) + tn(m+nlat,l) ; tna = tn(m,l) - tn(m+nlat,l)
-      e = w + ntp1 - m    ! vector of symmetric modes
-      d(w:e:2) = d(w:e:2) + qq(w:e:2,l) * kes - qe(w:e:2,l) * fva + qx(w:e:2,l) * fus
-      t(w:e:2) = t(w:e:2) + qe(w:e:2,l) * vta + qc(w:e:2,l) * tns - qx(w:e:2,l) * uts
-      z(w:e:2) = z(w:e:2) + qe(w:e:2,l) * fua + qx(w:e:2,l) * fvs
-      w = w + 1           ! vector of antisymmetric modes
-      d(w:e:2) = d(w:e:2) + qq(w:e:2,l) * kea - qe(w:e:2,l) * fvs + qx(w:e:2,l) * fua
-      t(w:e:2) = t(w:e:2) + qe(w:e:2,l) * vts + qc(w:e:2,l) * tna - qx(w:e:2,l) * uta
-      z(w:e:2) = z(w:e:2) + qe(w:e:2,l) * fus + qx(w:e:2,l) * fva
-      w = e + 1
-   enddo ! m
-enddo ! l
-
-!$acc end kernels
+do jlev = 1, nlev
+   do l = 1 , nhpp  ! process pairs of Nort-South latitudes
+      w = 1
+      do m = 1 , ntp1
+         kes = ke(m,l,jlev) + ke(m+nlat,l,jlev) ; kea = ke(m,l,jlev) - ke(m+nlat,l,jlev)
+         fvs = fv(m,l,jlev) + fv(m+nlat,l,jlev) ; fva = fv(m,l,jlev) - fv(m+nlat,l,jlev)
+         fus = fu(m,l,jlev) + fu(m+nlat,l,jlev) ; fua = fu(m,l,jlev) - fu(m+nlat,l,jlev)
+         uts = ut(m,l,jlev) + ut(m+nlat,l,jlev) ; uta = ut(m,l,jlev) - ut(m+nlat,l,jlev)
+         vts = vt(m,l,jlev) + vt(m+nlat,l,jlev) ; vta = vt(m,l,jlev) - vt(m+nlat,l,jlev)
+         tns = tn(m,l,jlev) + tn(m+nlat,l,jlev) ; tna = tn(m,l,jlev) - tn(m+nlat,l,jlev)
+         e = w + ntp1 - m    ! vector of symmetric modes
+         d(w:e:2,jlev) = d(w:e:2,jlev) + qq(w:e:2,l) * kes - qe(w:e:2,l) * fva + qx(w:e:2,l) * fus
+         t(w:e:2,jlev) = t(w:e:2,jlev) + qe(w:e:2,l) * vta + qc(w:e:2,l) * tns - qx(w:e:2,l) * uts
+         z(w:e:2,jlev) = z(w:e:2,jlev) + qe(w:e:2,l) * fua + qx(w:e:2,l) * fvs
+         w = w + 1           ! vector of antisymmetric modes
+         d(w:e:2,jlev) = d(w:e:2,jlev) + qq(w:e:2,l) * kea - qe(w:e:2,l) * fvs + qx(w:e:2,l) * fua
+         t(w:e:2,jlev) = t(w:e:2,jlev) + qe(w:e:2,l) * vts + qc(w:e:2,l) * tna - qx(w:e:2,l) * uta
+         z(w:e:2,jlev) = z(w:e:2,jlev) + qe(w:e:2,l) * fus + qx(w:e:2,l) * fva
+         w = e + 1
+      enddo ! m
+   enddo ! l
+end do
 
 end subroutine mktend
 
