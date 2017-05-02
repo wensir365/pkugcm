@@ -1,0 +1,5 @@
+rm -f run
+pgfortran -Minline=nest_times -ta=tesla:cc60 -acc -Minfo=accel -c main.f90
+pgfortran -Minline=nest_times -ta=tesla:cc60 -acc -Minfo=accel -o run main.o
+#pgfortran -fast -o run main.f90
+./run
