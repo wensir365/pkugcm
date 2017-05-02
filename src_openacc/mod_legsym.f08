@@ -150,10 +150,10 @@ end subroutine legini
 ! ================
 
 subroutine fc2sp(fc,sp)
-use pumamod, only: qc, nlon,nlat,nhpp,ntp1,nesp
+use pumamod, only: qc, nlon,nlat,nhpp,ntp1,ncsp
 implicit none
 complex, dimension(nlon,nhpp), intent(in ) :: fc
-complex, dimension(nesp/2),    intent(out) :: sp
+complex, dimension(ncsp),      intent(out) :: sp
 ! local
 integer :: l ! Index for latitude
 integer :: m ! Index for zonal wavenumber
@@ -172,6 +172,34 @@ do l = 1 , nhpp
    enddo ! m
 enddo ! l
 end subroutine fc2sp
+
+pure &
+subroutine fc2sp_1lev(fc,sp,   qc,nlon,nlat,nhpp,ntp1,ncsp)
+implicit none
+complex, dimension(nlon,nhpp), intent(in ) :: fc
+complex, dimension(ncsp),      intent(out) :: sp
+
+real,    dimension(ncsp,nhpp), intent(in ) :: qc
+integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+
+! local
+integer :: l ! Index for latitude
+integer :: m ! Index for zonal wavenumber
+integer :: w ! Index for spherical harmonic
+integer :: e ! Index for last wavenumber
+
+sp(:) = (0.0,0.0)
+
+do l = 1 , nhpp
+   w = 1
+   do m = 1 , ntp1
+      e = w + ntp1 - m
+      sp(w  :e:2) = sp(w  :e:2) + qc(w  :e:2,l) * (fc(m,l) + fc(m+nlat,l)) ! XW: qc derived from module "legsym"
+      sp(w+1:e:2) = sp(w+1:e:2) + qc(w+1:e:2,l) * (fc(m,l) - fc(m+nlat,l))
+      w = e + 1
+   enddo ! m
+enddo ! l
+end subroutine fc2sp_1lev
 
 
 ! ================
@@ -207,6 +235,7 @@ end subroutine sp2fc
 
 ! sp2fc_nlev与上面的sp2fc的唯一区别是增加垂向循环
 ! XW: for better performance in OpenACC
+pure &
 subroutine sp2fc_nlev(sp,fc,   qi, nlon,nlat,nlev,nhpp,ntp1,ncsp) ! Spectral to Fourier
 !$---acc routine worker
 implicit none
@@ -241,6 +270,38 @@ do jlev = 1, NLEV
 end do
 end subroutine sp2fc_nlev
 
+pure &
+subroutine sp2fc_1lev(sp,fc,   qi,nlon,nlat,nhpp,ntp1,ncsp) ! Spectral to Fourier
+implicit none
+complex, dimension(ncsp),      intent(in ) :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
+
+real,    dimension(ncsp,nhpp), intent(in ) :: qi
+integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+
+! local
+integer :: l ! Loop index for latitude
+integer :: m ! Loop index for zonal wavenumber m
+integer :: w ! Index for spectral mode
+integer :: e ! Index for last wavenumber
+complex :: fs,fa
+
+fc(:,:) = (0.0,0.0)
+
+do l = 1 , nhpp
+  w = 1  
+  do m = 1 ,ntp1
+    e = w + ntp1 - m
+    fs = dot_product(qi(w  :e:2,l),sp(w  :e:2)) ! XW: qi derived from module "legsym"
+    fa = dot_product(qi(w+1:e:2,l),sp(w+1:e:2))
+    fc(m     ,l) = fs + fa
+    fc(m+nlat,l) = fs - fa
+    w = e + 1
+  enddo ! m
+enddo ! l
+end subroutine sp2fc_1lev
+
+
 ! ===================
 ! SUBROUTINE SP2FCDMU
 ! ===================
@@ -271,6 +332,37 @@ do l = 1 , nhpp
   enddo ! m
 enddo ! l
 end subroutine sp2fcdmu
+
+pure &
+subroutine sp2fcdmu_1lev(sp,fc,   qj,nlon,nlat,nhpp,ntp1,ncsp) ! Spectral to Fourier d/dmu
+implicit none
+complex, dimension(ncsp),      intent(in)  :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
+
+real,    dimension(ncsp,nhpp), intent(in ) :: qj
+integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+
+! local
+integer :: l ! Loop index for latitude
+integer :: m ! Loop index for zonal wavenumber m
+integer :: w ! Index for spectral mode
+integer :: e ! Index for last wavenumber
+complex :: fs,fa
+
+fc(:,:) = (0.0,0.0)
+
+do l = 1 , nhpp
+  w = 1  
+  do m = 1 , ntp1
+    e = w + ntp1 - m
+    fs = dot_product(qj(w  :e:2,l),sp(w  :e:2))    ! qj from legsym
+    fa = dot_product(qj(w+1:e:2,l),sp(w+1:e:2))
+    fc(m     ,l) = fa + fs
+    fc(m+nlat,l) = fa - fs
+    w = e + 1
+  enddo ! m
+enddo ! l
+end subroutine sp2fcdmu_1lev
 
 
 ! ================
@@ -440,6 +532,7 @@ end subroutine dv2uv
 
 ! dv2uv_nlev与上面的dv2uv的唯一区别是增加垂向循环
 ! XW: for better performance in OpenACC
+pure &
 subroutine dv2uv_nlev(pd,pz,pu,pv,   qu,qv, nlon,nlat,nlev,nhpp,ntru,ntp1,ncsp,nesp, plavor)
 !$---acc routine worker
 implicit none
@@ -560,6 +653,7 @@ end subroutine dv2uv_nlev
 ! =================
 ! XW(2017/5/1): 把单层改为对垂向循环
 
+pure &
 subroutine mktend(d,t,z,tn,fu,fv,ke,ut,vt,   qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)
 !$---acc routine worker
 implicit none

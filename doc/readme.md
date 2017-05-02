@@ -1,5 +1,9 @@
 # Change Log
 
+## 2017-May-2: Clean gridpoint ALL!
+
+Big clean for girdpoint! Purify ALL THE SUBPROGRAMS in gridpoint, including: [Independent] calcgp, mktend, [Spherical Harmonic] sp2fc_nlev, dv2uv_nlev, sp2fcdmu_1lev, fc2sp_1lev, sp2fcdmu_1lev, [FFT] fc2gp, gp2fc. So fat, we can say we are ready to OpenACC the gridpoint.
+
 ## 2017-May-1: Polish output function
 
 - write one single output file per year

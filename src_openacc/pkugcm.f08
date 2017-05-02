@@ -3009,8 +3009,9 @@ end subroutine master
       use pumamod, only: sd,st,sz,sp, sdt,stt,szt,spt,   &  ! 前4个是总体的最根本input; 后四个是最根本output
                          gd,gt,gz,gp,gpj,gu,gv,          &  ! 这些变量都会被update
                          gut,gvt,gke,gfu,gfv,            &  ! 这些变量都会被update
-                         NLON,NLAT,NLEV,NLPP,NHPP,NHOR,NRSP,NESP,NCSP,NTP1,NTRU,trigs, &
-                         qi,qu,qv,qq,qe,qc,qx,plavor
+                         NLON,NLAT,NLEV,NLEM,NLPP,NHPP,NHOR,NRSP,NESP,NCSP,NTP1,NTRU,trigs, &
+                         qi,qj,qu,qv,qq,qe,qc,qx,plavor, &
+                         t0d,tkp,rdsig,rcsq,c,dsigma,sigmh,akap,ruidop,NRUIDO
       implicit none
 
       ! 在calcgp中重要的传递变量
@@ -3019,27 +3020,25 @@ end subroutine master
       real, dimension(NLON,NLAT)      :: gpmt   ! Ps
 
       ! 此子程序最终计算出的4变量的倾向 最终要赋值给sdt,stt,szt,spt
-      real, dimension(NESP,NLEV)      :: sdf    ! tendency of div
-      real, dimension(NESP,NLEV)      :: stf    ! tendency of temperature
-      real, dimension(NESP,NLEV)      :: szf    ! tendency of vor
-      real, dimension(NESP)           :: spf    ! tendency of surface pressure
+      !real, dimension(NESP,NLEV)      :: sdf    ! tendency of div
+      !real, dimension(NESP,NLEV)      :: stf    ! tendency of temperature
+      !real, dimension(NESP,NLEV)      :: szf    ! tendency of vor
+      !real, dimension(NESP)           :: spf    ! tendency of surface pressure
 
       ! 用于最后diag时用的
-      real, dimension(NLON,NLAT)      :: zgp
-      real, dimension(NHOR)           :: zgpp
-      real, dimension(NLAT,NLEV)      :: zcs  !XW(2017-4-7): remove "(kind=4)" for zcs and zsp
-      real, dimension(NRSP)           :: zsp
+      !real, dimension(NLON,NLAT)      :: zgp
+      !real, dimension(NHOR)           :: zgpp
+      !real, dimension(NLAT,NLEV)      :: zcs  !XW(2017-4-7): remove "(kind=4)" for zcs and zsp
+      !real, dimension(NRSP)           :: zsp
 
-      real :: sec
-      integer :: jlon, jlat, jlev
+      !real :: sec                   ! diag时用的单位转换变量
+      integer :: jlon, jlat, jlev   ! loop variables
 
-
-      call sp2fc_nlev(st,gt,   qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)     ! temperature
-      call sp2fc_nlev(sd,gd,   qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)     ! div
-      call sp2fc_nlev(sz,gz,   qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)     ! vor
-      call dv2uv_nlev(sd,sz,gu,gv,  &                                ! div,vor -> UCOS(phi),VCOS(phi)
-                      qu,qv, nlon,nlat,nlev,nhpp,ntru,ntp1,ncsp,nesp, plavor)
-
+      ! ALL pure subroutines
+      call sp2fc_nlev(st,gt,        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)                     ! temperature
+      call sp2fc_nlev(sd,gd,        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)                     ! div
+      call sp2fc_nlev(sz,gz,        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)                     ! vor
+      call dv2uv_nlev(sd,sz,gu,gv,  qu,qv,nlon,nlat,nlev,nhpp,ntru,ntp1,ncsp,nesp,plavor) ! div,vor -> UCOS(phi),VCOS(phi)
 
       !do jlev = 1 , NLEV
       !   call sp2fc(sd(:,jlev),gd(:,jlev))
@@ -3048,12 +3047,9 @@ end subroutine master
       !   call dv2uv(sd(:,jlev),sz(:,jlev),gu(:,jlev),gv(:,jlev)) ! div,vor->ucos(phi),vcos(phi)
       !enddo
 
-      call sp2fc(sp,gp)                                          ! lnPs
-      call sp2fcdmu(sp,gpj)                                      ! d(lnPs) / d(mu)
-
-      !do jlev = 1 , NLEV
-      !enddo
-
+      ! ALL pure subroutines
+      call sp2fc_1lev(sp,gp,        qi,nlon,nlat,nhpp,ntp1,ncsp)                          ! lnPs
+      call sp2fcdmu_1lev(sp,gpj,    qj,nlon,nlat,nhpp,ntp1,ncsp)                          ! d(lnPs) / d(mu)
 
       ! 纬向FFT滤波
       !if (lselect) then
@@ -3083,11 +3079,12 @@ end subroutine master
 
       do jlat = 1 , NLAT
          do jlon = 1 , NLON-1 , 2
-           gpmt(jlon  ,jlat) = -gp(jlon+1+(jlat-1)*NLON) * ((jlon-1)/2)
-           gpmt(jlon+1,jlat) =  gp(jlon  +(jlat-1)*NLON) * ((jlon-1)/2)
+           gpmt(jlon  ,jlat) = -gp(jlon+1+(jlat-1)*NLON) * ((jlon-1)/2)    ! 对称模态
+           gpmt(jlon+1,jlat) =  gp(jlon  +(jlat-1)*NLON) * ((jlon-1)/2)    ! 非对称模态
          end do
       end do
 
+      ! ALL pure subroutines
       call fc2gp(gu  ,NLON,NLAT*NLEV,trigs)
       call fc2gp(gv  ,NLON,NLAT*NLEV,trigs)
       call fc2gp(gt  ,NLON,NLAT*NLEV,trigs)
@@ -3096,12 +3093,16 @@ end subroutine master
       call fc2gp(gpj ,NLON,NLAT,trigs)
       call fc2gp(gpmt,NLON,NLAT,trigs)
 
-      call calcgp(gtn,gpmt,gvpp)
+      ! ALL pure subroutines
+      call calcgp(gpmt,   gtn,gvpp,gfu,gfv,                                         & ! Intent(in,   out,out,out,out)
+                  gu,gv,gd,gz,gt,gpj,t0d,tkp,rdsig,rcsq,c,dsigma,sigmh,akap,ruidop, & ! Others are all Intent(in)
+                  NLEV,NLEM,NHOR,NRUIDO)
 
       gut(:,:) = gu(:,:) * gt(:,:)
       gvt(:,:) = gv(:,:) * gt(:,:)
       gke(:,:) = gu(:,:) * gu(:,:) + gv(:,:) * gv(:,:)
 
+      ! ALL pure subroutines
       call gp2fc(gtn ,NLON,NLAT*NLEV,trigs)
       call gp2fc(gut ,NLON,NLAT*NLEV,trigs)
       call gp2fc(gvt ,NLON,NLAT*NLEV,trigs)
@@ -3110,7 +3111,9 @@ end subroutine master
       call gp2fc(gke ,NLON,NLAT*NLEV,trigs)
       call gp2fc(gvpp,NLON,NLAT     ,trigs)
 
-      call fc2sp(gvpp,spf)
+      ! ALL pure subroutines
+      !call fc2sp(gvpp,spf)       ! 这里是spf的关键点
+      call fc2sp_1lev(gvpp,spt,     qc,nlon,nlat,nhpp,ntp1,ncsp)       ! 这里是spf的关键点
 
       ! 纬向滤波
       !if (lselect) then
@@ -3131,17 +3134,21 @@ end subroutine master
       !               gtn(:,:,jlev),gfu(:,jlev),gfv(:,jlev), & ! there are 6 intent(in) variables 
       !               gke(:,jlev),gut(:,jlev),gvt(:,jlev))
       !enddo
-      call mktend(sdf,stf,szf,   gtn,gfu,gfv,gke,gut,gvt, &
-                  qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)
+      !call mktend(sdf,stf,szf,   gtn,gfu,gfv,gke,gut,gvt,         &  ! 前3个输出 后6个输入
+      !            qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)   ! 其它全是参数
+
+      ! ALL pure subroutines
+      call mktend(sdt,stt,szt,   gtn,gfu,gfv,gke,gut,gvt,         &  ! 前3个输出 后6个输入
+                  qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)   ! 其它全是参数
 
       ! 实际上未加 暂时注释掉
       !if (nruido > 0) call stepruido      ! 在运行中是否还要加随机扰动? 这里计算ruido数组
 
       ! 这是关键--要传递给spectral的4变量倾向
-      spt   = spf    !call mpsumsc(spf,spt,1)
-      sdt   = sdf    !call mpsumsc(sdf,sdt,NLEV)
-      szt   = szf    !call mpsumsc(szf,szt,NLEV)
-      stt   = stf    !call mpsumsc(stf,stt,NLEV)
+      !spt   = spf    !call mpsumsc(spf,spt,1)
+      !sdt   = sdf    !call mpsumsc(sdf,sdt,NLEV)
+      !szt   = szf    !call mpsumsc(szf,szt,NLEV)
+      !stt   = stf    !call mpsumsc(stf,stt,NLEV)
 
 ! 为OpenACC测试暂时关闭 打开第一列叹号就是原来的优化带注释
 !
@@ -3194,14 +3201,25 @@ end subroutine master
 !     深挖scalable computing
 !     纯数组计算 没有调用任何其它函数和子程序
 !     intent(in   ) : gpm,gpj, gu,gv,gd,gz,gt
-!     intent(inout) : gfu,gfv
+!     intent(  out) : gfu,gfv
 !     intent(  out) : gtn,gvp
 !     =================
-      subroutine calcgp(gtn,gpm,gvp)            ! gpm进 gtn/gvp出
-      use pumamod, only: gfu, gfv,           &  ! 注意这两个变量也要被修改
-                         gu,gv,gd,gz,gt,gpj, &  ! Others just intent(in)
-                         t0d,tkp,rdsig,rcsq,c,dsigma,sigmh,akap,ruidop, NLEV,NLEM,NHOR,NRUIDO
+pure  subroutine calcgp(gpm,   gtn,gvp,gfu,gfv,    & ! gpm进 gtn/gvp/gfu/gfv出
+                        gu,gv,gd,gz,gt,gpj,t0d,tkp,rdsig,rcsq,c,dsigma,sigmh,akap,ruidop,NLEV,NLEM,NHOR,NRUIDO)
       implicit none
+
+      real, intent(in ) :: gpm(NHOR)
+      real, intent(out) :: gtn(NHOR,NLEV)
+      real, intent(out) :: gvp(NHOR)
+      real, intent(out) :: gfu(NHOR,NLEV)
+      real, intent(out) :: gfv(NHOR,NLEV)
+
+      real, dimension(NHOR,NLEV), intent(in) :: gu,gv,gd,gz,gt,ruidop
+      real, dimension(NHOR),      intent(in) :: gpj,rcsq
+      real, dimension(NLEV),      intent(in) :: t0d,tkp,rdsig,dsigma,sigmh
+      real, dimension(NLEV,NLEV), intent(in) :: c
+      real,                       intent(in) :: akap
+      integer,                    intent(in) :: NLEV,NLEM,NHOR,NRUIDO
 
 !     Comments by Torben Kunz and Guido Schroeder
 
@@ -3250,10 +3268,6 @@ end subroutine master
 
 !     aINTb(A)dsigma :<=> the integral of A over the interval [a,b]
 !                         with respect to sigma
-
-      real, intent(out) :: gtn(NHOR,NLEV)
-      real, intent(in ) :: gpm(NHOR)
-      real, intent(out) :: gvp(NHOR)
 
       ! local
       real zsdotp(NHOR,NLEM),zsumd(NHOR),zsumvp(NHOR),zsumvpm(NHOR)

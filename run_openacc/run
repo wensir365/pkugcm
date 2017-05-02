@@ -6,13 +6,13 @@ setenv CONVERT_NC 1           # 1 to convert netcdf; 0 off
 date
 
 # T21
-#./pkugcm.x 32 10
+./pkugcm.x 32 10
 
 # T42
 #./pkugcm.x 64 10
 
 # T85
-./pkugcm.x 128 10
+#./pkugcm.x 128 10
 
 # T170
 #./pkugcm.x 256 10
@@ -23,7 +23,7 @@ date
 if ($CONVERT_NC == 1) then
 
 setenv NLEV  10
-setenv NLAT  128
+setenv NLAT  32
 setenv NTIME 360
 
 setenv VARID t

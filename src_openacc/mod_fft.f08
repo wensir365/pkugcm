@@ -1,3 +1,4 @@
+!=======================================================================
 !           这两个关键过程调用安全 无任何依赖
 ! public:   gp2fc( x(N,lot), N, lot, trigs),  lot=NLAT*NLEV
 !           fc2gp( x(N,lot), N, lot, trigs)
@@ -8,6 +9,7 @@
 !      pure dfft2, dfft3, dfft4, dfft8
 !      pure ifft2, ifft3, ifft4, ifft8
 ! Comments by X. Wen, Peking Univ, Apr-22-2017
+!=======================================================================
 
 
 !     ================
@@ -17,7 +19,7 @@
 ! XW (2017/4/8): can parallel along with lot!!! 
 ! lot:多少根纬线? (NLPP*NLEV); n:每根纬线上有多少点? (NLON)
 
-      subroutine gp2fc(a,n,lot,base)
+pure  subroutine gp2fc(a,n,lot,base)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(inout) :: a
@@ -33,6 +35,33 @@
       !   call fftini(n)
       !endif
 
+      interface
+      pure  subroutine dfft8(a,c,n,lot)
+               implicit none
+               integer, intent(in) :: n, lot
+               real, dimension(n,lot), intent(in)  :: a
+               real, dimension(n,lot), intent(out) :: c
+            end subroutine dfft8
+      pure  subroutine dfft4(a,trigs,n,lot,la)
+               implicit none
+               integer, intent(in) :: n, lot
+               integer, intent(inout) :: la
+               real, dimension(n), intent(in) :: trigs
+               real, dimension(n,lot), intent(inout) :: a
+            end subroutine dfft4
+      pure  subroutine dfft3(a,trigs,n)
+               implicit none
+               integer, intent(in) :: n
+               real, dimension(n), intent(in) :: trigs
+               real, dimension(n), intent(inout) :: a
+            end subroutine dfft3
+      pure  subroutine dfft2(a,trigs,n)
+               implicit none
+               integer, intent(in) :: n
+               real, dimension(n), intent(in) :: trigs
+               real, dimension(n), intent(inout) :: a
+            end subroutine dfft2
+      end interface
 
       call dfft8(a,a,n,lot)
       la = n / 8
@@ -52,14 +81,14 @@
          enddo
       endif
 
-
       end subroutine gp2fc
+
 
 !     ================
 !     SUBROUTINE FC2GP
 !     ================
 
-      subroutine fc2gp(a,n,lot,base)
+pure  subroutine fc2gp(a,n,lot,base)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(inout) :: a
@@ -75,6 +104,36 @@
       !   call fftini(n) !XW: just call fftini ONCE
       !endif
 
+      interface
+      pure  subroutine ifft8(a,c,n,lot)
+               implicit none
+               integer, intent(in) :: n, lot
+               real, dimension(n,lot), intent(in)  :: a
+               real, dimension(n,lot), intent(out) :: c
+            end subroutine ifft8
+      pure  subroutine ifft4(c,trigs,n,lot,la)
+               implicit none
+               integer, intent(in) :: n, lot
+               integer, intent(inout) :: la
+               real, dimension(n), intent(in) :: trigs
+               real, dimension(n,lot), intent(inout) :: c
+            end subroutine ifft4
+      pure  subroutine ifft3(a,trigs,n,lot,la)
+               implicit none
+               integer, intent(in) :: n, lot
+               integer, intent(inout) :: la
+               real, dimension(n), intent(in) :: trigs
+               real, dimension(n,lot), intent(inout) :: a
+            end subroutine ifft3
+      pure  subroutine ifft2(a,trigs,n,lot,la)
+               implicit none
+               integer, intent(in) :: n, lot
+               integer, intent(inout) :: la
+               real, dimension(n), intent(in) :: trigs
+               real, dimension(n,lot), intent(inout) :: a
+            end subroutine ifft2
+      end interface
+
       nf = n/8
       do while (nf >= 4)
          nf = nf/4
@@ -87,6 +146,7 @@
       enddo
       call ifft8(a,a,n,lot)
       end subroutine fc2gp
+
 
 !     =================
 !     SUBROUTINE FFTINI
@@ -159,6 +219,7 @@
 
       end subroutine fftini
 
+
 !     ================
 !     SUBROUTINE DFFT2
 !     ================
@@ -199,6 +260,7 @@ pure  subroutine dfft2(a,trigs,n)
 
       a = c
       end subroutine dfft2
+
 
 !     ================
 !     SUBROUTINE DFFT3
@@ -259,6 +321,7 @@ pure  subroutine dfft3(a,trigs,n)
 
       a = c
       end subroutine dfft3
+
 
 !     ================
 !     SUBROUTINE DFFT4
@@ -397,6 +460,7 @@ pure  subroutine dfft4(a,trigs,n,lot,la)
       endif
       end subroutine dfft4
 
+
 !     ================
 !     SUBROUTINE DFFT8
 !     ================
@@ -461,6 +525,7 @@ pure  subroutine dfft8(a,c,n,lot)
       !$--OMP-- end parallel do
       end subroutine dfft8
 
+
 !     ================
 !     SUBROUTINE IFFT2
 !     ================
@@ -504,6 +569,7 @@ pure  subroutine ifft2(a,trigs,n,lot,la)
       la = 2
       a  = c
       end subroutine ifft2
+
 
 !     ================
 !     SUBROUTINE IFFT3
@@ -565,6 +631,7 @@ pure  subroutine ifft3(a,trigs,n,lot,la)
       la = 3
       a  = c
       end subroutine ifft3
+
 
 !     ================
 !     SUBROUTINE IFFT4
@@ -692,6 +759,7 @@ pure  subroutine ifft4(c,trigs,n,lot,la)
 
       la = la * 4
       end subroutine ifft4
+
 
 !     ================
 !     SUBROUTINE IFFT8

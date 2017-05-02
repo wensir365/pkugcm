@@ -6,8 +6,8 @@
 #=====================
 # GNU gfortran
 F90    = gfortran
-FLAGS  = -O3 #-Ofast #-Wall #-pg 
-OTHERS = -fopenmp #-ffree-line-length-none -fbacktrace
+FLAGS  = -O3 #-Wall #-Ofast #-pg 
+OTHERS = #-fopenmp #-ffree-line-length-none -fbacktrace
 #USELESS= -fdefault-real-8 -fbacktrace -ffpe-trap=underflow,denormal
 
 # PGI pgfortran
@@ -21,19 +21,13 @@ OTHERS = -fopenmp #-ffree-line-length-none -fbacktrace
 #OTHERS = -qopenmp
 #USELESS= -parallel
 
-#=====================
-# 2. if MPI?
-#=====================
-# No
-#MPIMOD	= mod_mpi_stub
-
 #====================
-# 3. Compile
+# 2. Compile
 #====================
 OBJ = pkugcm.o mod_fft.o mod_legsym.o mod_restart.o mod_io.o
 
 %.o : %.f08
-	${F90} -c $(FLAGS) $(OTHERS) $<
+	${F90} $(FLAGS) $(OTHERS) -c $<
 
 pkugcm.x:	$(OBJ)
 	${F90} $(FLAGS) $(OTHERS) -o pkugcm.x $(OBJ)
@@ -45,7 +39,7 @@ mod_restart.o: mod_restart.f08
 mod_io.o:      mod_io.f08
 
 #====================
-# 4. Clean
+# 3. Clean
 #====================
 clean:
 	rm -f *.o *.mod
