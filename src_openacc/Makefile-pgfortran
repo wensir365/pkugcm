@@ -12,7 +12,7 @@
 
 # PGI pgfortran
 F90    = pgfortran
-FLAGS  = -fast #-acc -Minfo=accel -ta=tesla:cc20 #cc60 #-ta=multicore
+FLAGS  = -fast -acc -Minfo=accel -ta=tesla:cc60 #-ta=multicore
 OTHERS = #-mp
 
 # Intel ifort
@@ -39,6 +39,7 @@ OBJ = pkugcm.o mod_fft.o mod_legsym.o mod_restart.o mod_io.o
 pkugcm.x:	$(OBJ)
 	${F90} $(FLAGS) $(OTHERS) -o pkugcm.x $(OBJ)
 
+mod_dycore.o:  mod_dycore.f08
 pkugcm.o:      pkugcm.f08
 mod_fft.o:     mod_fft.f08
 mod_legsym.o:  mod_legsym.f08

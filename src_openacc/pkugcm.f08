@@ -3006,6 +3006,7 @@ end subroutine master
 !     ====================
 
       subroutine gridpoint
+ !     use dycore
       use pumamod, only: sd,st,sz,sp, sdt,stt,szt,spt,   &  ! 前4个是总体的最根本input; 后四个是最根本output
                          gd,gt,gz,gp,gpj,gu,gv,          &  ! 这些变量都会被update
                          gut,gvt,gke,gfu,gfv,            &  ! 这些变量都会被update
@@ -3033,6 +3034,8 @@ end subroutine master
 
       !real :: sec                   ! diag时用的单位转换变量
       integer :: jlon, jlat, jlev   ! loop variables
+
+!$---acc kernels
 
       ! ALL pure subroutines
       call sp2fc_nlev(st,gt,        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)                     ! temperature

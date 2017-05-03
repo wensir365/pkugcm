@@ -237,7 +237,6 @@ end subroutine sp2fc
 ! XW: for better performance in OpenACC
 pure &
 subroutine sp2fc_nlev(sp,fc,   qi, nlon,nlat,nlev,nhpp,ntp1,ncsp) ! Spectral to Fourier
-!$---acc routine worker
 implicit none
 complex, dimension(ncsp,nlev),      intent(in ) :: sp   ! Coefficients of spherical harmonics
 complex, dimension(nlon,nhpp,nlev), intent(out) :: fc   ! Fourier coefficients

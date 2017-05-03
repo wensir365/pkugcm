@@ -100,9 +100,9 @@ begin
    ;--- input & output
    filetimestamp  = 0
    ; 新版本NCL使用fileexists
-   ;do while fileexists("output_"+VARID+"_"+sprinti("%0.4i",filetimestamp)+".bin")
+   do while fileexists("output_"+VARID+"_"+sprinti("%0.4i",filetimestamp)+".bin")
    ; 老版本NCL使用isfilepresent
-   do while isfilepresent("output_"+VARID+"_"+sprinti("%0.4i",filetimestamp)+".bin")
+   ;do while isfilepresent("output_"+VARID+"_"+sprinti("%0.4i",filetimestamp)+".bin")
       ; input
       fn    = "output_"+VARID+"_"+sprinti("%0.4i",filetimestamp)+".bin"
       xtmp  = cbinread(fn,-1,"float")

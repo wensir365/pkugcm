@@ -1,11 +1,6 @@
 #!/bin/tcsh
 
-cp -f pkugcm.f08        pkugcm.f90
-cat   mod_legsym.f08 >> pkugcm.f90
-cat   mod_fft.f08    >> pkugcm.f90
-cat   mod_io.f08     >> pkugcm.f90
-cat   mod_restart.f08>> pkugcm.f90
+pgfortran -Minline,reshape -fast -acc -Minfo=accel -ta=tesla:cc60 -c mod_dycore.f08
 
-pgfortran -Minline,reshape -fast -acc -Minfo=accel -ta=tesla:cc20 -o pkugcm.x pkugcm.f90
 #pgfortran -fast -acc -Minfo=accel -ta=tesla:cc20 -o pkugcm.x pkugcm.f90
 #rm -f pkugcm.f90
