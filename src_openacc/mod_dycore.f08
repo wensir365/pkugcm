@@ -1,5 +1,23 @@
 module dycore
 
+!=========================================
+!public ::  球谐变换
+!           sp2fc_nlev
+!           sp2fc_1lev
+!           fc2sp_1lev
+!           dv2uv_nlev
+!           sp2fcdmu_1lev
+!
+!           傅立叶变换
+!           gp2fc_acc
+!              dfft2_acc, dfft3_acc, dfft4_acc, dfft8_acc
+!           fc2gp_acc
+!              ifft2_acc, ifft3_acc, ifft4_acc, ifft8_acc
+!
+!           非线性项的倾向计算
+!           mktend_acc
+!=========================================            
+
 CONTAINS
 
 
@@ -43,6 +61,71 @@ end do
 !$---acc end kernels
 
 end subroutine sp2fc_nlev
+
+
+
+pure &
+subroutine sp2fc_1lev(sp,fc,   qi,nlon,nlat,nhpp,ntp1,ncsp) ! Spectral to Fourier
+implicit none
+complex, dimension(ncsp),      intent(in ) :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
+
+real,    dimension(ncsp,nhpp), intent(in ) :: qi
+integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+
+! local
+integer :: l ! Loop index for latitude
+integer :: m ! Loop index for zonal wavenumber m
+integer :: w ! Index for spectral mode
+integer :: e ! Index for last wavenumber
+complex :: fs,fa
+
+fc(:,:) = (0.0,0.0)
+
+do l = 1 , nhpp
+  w = 1  
+  do m = 1 ,ntp1
+    e = w + ntp1 - m
+    fs = dot_product(qi(w  :e:2,l),sp(w  :e:2)) ! XW: qi derived from module "legsym"
+    fa = dot_product(qi(w+1:e:2,l),sp(w+1:e:2))
+    fc(m     ,l) = fs + fa
+    fc(m+nlat,l) = fs - fa
+    w = e + 1
+  enddo ! m
+enddo ! l
+end subroutine sp2fc_1lev
+
+
+
+
+pure &
+subroutine fc2sp_1lev(fc,sp,   qc,nlon,nlat,nhpp,ntp1,ncsp)
+implicit none
+complex, dimension(nlon,nhpp), intent(in ) :: fc
+complex, dimension(ncsp),      intent(out) :: sp
+
+real,    dimension(ncsp,nhpp), intent(in ) :: qc
+integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+
+! local
+integer :: l ! Index for latitude
+integer :: m ! Index for zonal wavenumber
+integer :: w ! Index for spherical harmonic
+integer :: e ! Index for last wavenumber
+
+sp(:) = (0.0,0.0)
+
+do l = 1 , nhpp
+   w = 1
+   do m = 1 , ntp1
+      e = w + ntp1 - m
+      sp(w  :e:2) = sp(w  :e:2) + qc(w  :e:2,l) * (fc(m,l) + fc(m+nlat,l)) ! XW: qc derived from module "legsym"
+      sp(w+1:e:2) = sp(w+1:e:2) + qc(w+1:e:2,l) * (fc(m,l) - fc(m+nlat,l))
+      w = e + 1
+   enddo ! m
+enddo ! l
+end subroutine fc2sp_1lev
+
 
 
 
@@ -169,6 +252,40 @@ end subroutine dv2uv_nlev
 
 
 
+pure &
+subroutine sp2fcdmu_1lev(sp,fc,   qj,nlon,nlat,nhpp,ntp1,ncsp) ! Spectral to Fourier d/dmu
+implicit none
+complex, dimension(ncsp),      intent(in)  :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
+
+real,    dimension(ncsp,nhpp), intent(in ) :: qj
+integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+
+! local
+integer :: l ! Loop index for latitude
+integer :: m ! Loop index for zonal wavenumber m
+integer :: w ! Index for spectral mode
+integer :: e ! Index for last wavenumber
+complex :: fs,fa
+
+fc(:,:) = (0.0,0.0)
+
+do l = 1 , nhpp
+  w = 1  
+  do m = 1 , ntp1
+    e = w + ntp1 - m
+    fs = dot_product(qj(w  :e:2,l),sp(w  :e:2))    ! qj from legsym
+    fa = dot_product(qj(w+1:e:2,l),sp(w+1:e:2))
+    fc(m     ,l) = fa + fs
+    fc(m+nlat,l) = fa - fs
+    w = e + 1
+  enddo ! m
+enddo ! l
+end subroutine sp2fcdmu_1lev
+
+
+
+
 !=======================================================================
 !           这两个关键过程调用安全 无任何依赖
 ! public:   gp2fc( x(N,lot), N, lot, trigs),  lot=NLAT*NLEV
@@ -190,7 +307,7 @@ end subroutine dv2uv_nlev
 ! XW (2017/4/8): can parallel along with lot!!! 
 ! lot:多少根纬线? (NLPP*NLEV); n:每根纬线上有多少点? (NLON)
 
-pure  subroutine gp2fc(a,n,lot,base)
+pure  subroutine gp2fc_acc(a,n,lot,base)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(inout) :: a
@@ -198,52 +315,52 @@ pure  subroutine gp2fc(a,n,lot,base)
       integer :: la,l
 
       interface
-      pure  subroutine dfft8(a,c,n,lot)
+      pure  subroutine dfft8_acc(a,c,n,lot)
                implicit none
                integer, intent(in) :: n, lot
                real, dimension(n,lot), intent(in)  :: a
                real, dimension(n,lot), intent(out) :: c
-            end subroutine dfft8
-      pure  subroutine dfft4(a,trigs,n,lot,la)
+            end subroutine dfft8_acc
+      pure  subroutine dfft4_acc(a,trigs,n,lot,la)
                implicit none
                integer, intent(in) :: n, lot
                integer, intent(inout) :: la
                real, dimension(n), intent(in) :: trigs
                real, dimension(n,lot), intent(inout) :: a
-            end subroutine dfft4
-      pure  subroutine dfft3(a,trigs,n)
+            end subroutine dfft4_acc
+      pure  subroutine dfft3_acc(a,trigs,n)
                implicit none
                integer, intent(in) :: n
                real, dimension(n), intent(in) :: trigs
                real, dimension(n), intent(inout) :: a
-            end subroutine dfft3
-      pure  subroutine dfft2(a,trigs,n)
+            end subroutine dfft3_acc
+      pure  subroutine dfft2_acc(a,trigs,n)
                implicit none
                integer, intent(in) :: n
                real, dimension(n), intent(in) :: trigs
                real, dimension(n), intent(inout) :: a
-            end subroutine dfft2
+            end subroutine dfft2_acc
       end interface
 
-      call dfft8(a,a,n,lot)
+      call dfft8_acc(a,a,n,lot)
       la = n / 8
       do while (la >= 4)
-         call dfft4(a,base,n,lot,la)
+         call dfft4_acc(a,base,n,lot,la)
       enddo
 
       if (la == 3) then
          do l = 1 , lot
-            call dfft3(a(1,l),base,n)
+            call dfft3_acc(a(1,l),base,n)
          enddo
       endif
 
       if (la == 2) then
          do l = 1 , lot
-            call dfft2(a(1,l),base,n)
+            call dfft2_acc(a(1,l),base,n)
          enddo
       endif
 
-      end subroutine gp2fc
+      end subroutine gp2fc_acc
 
 
 
@@ -251,7 +368,7 @@ pure  subroutine gp2fc(a,n,lot,base)
 !     SUBROUTINE FC2GP
 !     ================
 
-pure  subroutine fc2gp(a,n,lot,base)
+pure  subroutine fc2gp_acc(a,n,lot,base)
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(inout) :: a
@@ -259,33 +376,33 @@ pure  subroutine fc2gp(a,n,lot,base)
       integer :: nf,la
 
       interface
-      pure  subroutine ifft8(a,c,n,lot)
+      pure  subroutine ifft8_acc(a,c,n,lot)
                implicit none
                integer, intent(in) :: n, lot
                real, dimension(n,lot), intent(in)  :: a
                real, dimension(n,lot), intent(out) :: c
-            end subroutine ifft8
-      pure  subroutine ifft4(c,trigs,n,lot,la)
+            end subroutine ifft8_acc
+      pure  subroutine ifft4_acc(c,trigs,n,lot,la)
                implicit none
                integer, intent(in) :: n, lot
                integer, intent(inout) :: la
                real, dimension(n), intent(in) :: trigs
                real, dimension(n,lot), intent(inout) :: c
-            end subroutine ifft4
-      pure  subroutine ifft3(a,trigs,n,lot,la)
+            end subroutine ifft4_acc
+      pure  subroutine ifft3_acc(a,trigs,n,lot,la)
                implicit none
                integer, intent(in) :: n, lot
                integer, intent(inout) :: la
                real, dimension(n), intent(in) :: trigs
                real, dimension(n,lot), intent(inout) :: a
-            end subroutine ifft3
-      pure  subroutine ifft2(a,trigs,n,lot,la)
+            end subroutine ifft3_acc
+      pure  subroutine ifft2_acc(a,trigs,n,lot,la)
                implicit none
                integer, intent(in) :: n, lot
                integer, intent(inout) :: la
                real, dimension(n), intent(in) :: trigs
                real, dimension(n,lot), intent(inout) :: a
-            end subroutine ifft2
+            end subroutine ifft2_acc
       end interface
 
       nf = n/8
@@ -293,13 +410,13 @@ pure  subroutine fc2gp(a,n,lot,base)
          nf = nf/4
       enddo
       la = 1
-      if (nf == 2) call ifft2(a,base,n,lot,la)
-      if (nf == 3) call ifft3(a,base,n,lot,la)
+      if (nf == 2) call ifft2_acc(a,base,n,lot,la)
+      if (nf == 3) call ifft3_acc(a,base,n,lot,la)
       do while (la < n/8)
-         call ifft4(a,base,n,lot,la)
+         call ifft4_acc(a,base,n,lot,la)
       enddo
-      call ifft8(a,a,n,lot)
-      end subroutine fc2gp
+      call ifft8_acc(a,a,n,lot)
+      end subroutine fc2gp_acc
 
 
 
@@ -307,7 +424,7 @@ pure  subroutine fc2gp(a,n,lot,base)
 !     SUBROUTINE DFFT2
 !     ================
 
-pure  subroutine dfft2(a,trigs,n)
+pure  subroutine dfft2_acc(a,trigs,n)
 !$acc routine worker
       implicit none
       integer, intent(in) :: n
@@ -343,14 +460,14 @@ pure  subroutine dfft2(a,trigs,n)
       c(ja+1) = -a(n  )
 
       a = c
-      end subroutine dfft2
+      end subroutine dfft2_acc
 
 
 !     ================
 !     SUBROUTINE DFFT3
 !     ================
 
-pure  subroutine dfft3(a,trigs,n)
+pure  subroutine dfft3_acc(a,trigs,n)
 !$acc routine worker
       implicit none
       integer, intent(in) :: n
@@ -405,14 +522,14 @@ pure  subroutine dfft3(a,trigs,n)
       endif
 
       a = c
-      end subroutine dfft3
+      end subroutine dfft3_acc
 
 
 !     ================
 !     SUBROUTINE DFFT4
 !     ================
 
-pure  subroutine dfft4(a,trigs,n,lot,la)
+pure  subroutine dfft4_acc(a,trigs,n,lot,la)
       implicit none
       integer, intent(in) :: n, lot
       integer, intent(inout) :: la
@@ -543,14 +660,14 @@ pure  subroutine dfft4(a,trigs,n,lot,la)
       else
          a = c
       endif
-      end subroutine dfft4
+      end subroutine dfft4_acc
 
 
 !     ================
 !     SUBROUTINE DFFT8
 !     ================
 
-pure  subroutine dfft8(a,c,n,lot)
+pure  subroutine dfft8_acc(a,c,n,lot)
 !$acc routine worker
       implicit none
       integer, intent(in) :: n, lot
@@ -603,14 +720,14 @@ pure  subroutine dfft8(a,c,n,lot)
          c(i6,:) = a7m3p5m1 - a6m2
          
       enddo
-      end subroutine dfft8
+      end subroutine dfft8_acc
 
 
 !     ================
 !     SUBROUTINE IFFT2
 !     ================
 
-pure  subroutine ifft2(a,trigs,n,lot,la)
+pure  subroutine ifft2_acc(a,trigs,n,lot,la)
       implicit none
       integer, intent(in) :: n, lot
       integer, intent(inout) :: la
@@ -648,14 +765,14 @@ pure  subroutine ifft2(a,trigs,n,lot,la)
 
       la = 2
       a  = c
-      end subroutine ifft2
+      end subroutine ifft2_acc
 
 
 !     ================
 !     SUBROUTINE IFFT3
 !     ================
 
-pure  subroutine ifft3(a,trigs,n,lot,la)
+pure  subroutine ifft3_acc(a,trigs,n,lot,la)
       implicit none
       integer, intent(in) :: n, lot
       integer, intent(inout) :: la
@@ -710,14 +827,14 @@ pure  subroutine ifft3(a,trigs,n,lot,la)
 
       la = 3
       a  = c
-      end subroutine ifft3
+      end subroutine ifft3_acc
 
 
 !     ================
 !     SUBROUTINE IFFT4
 !     ================
 
-pure  subroutine ifft4(c,trigs,n,lot,la)
+pure  subroutine ifft4_acc(c,trigs,n,lot,la)
       implicit none
       integer, intent(in) :: n, lot
       integer, intent(inout) :: la
@@ -838,14 +955,14 @@ pure  subroutine ifft4(c,trigs,n,lot,la)
       endif
 
       la = la * 4
-      end subroutine ifft4
+      end subroutine ifft4_acc
 
 
 !     ================
 !     SUBROUTINE IFFT8
 !     ================
 
-pure  subroutine ifft8(a,c,n,lot)
+pure  subroutine ifft8_acc(a,c,n,lot)
 !$acc routine worker
       implicit none
       integer, intent(in) :: n, lot
@@ -897,6 +1014,72 @@ pure  subroutine ifft8(a,c,n,lot)
          c(i7,:)  = a0m7p4 + a1m5p2p6
       end do
 
-      end subroutine ifft8
+      end subroutine ifft8_acc
+
+
+
+
+! =================
+! SUBROUTINE MKTEND
+! =================
+! XW(2017/5/1): 把单层改为对垂向循环
+
+pure &
+subroutine mktend_acc(d,t,z,tn,fu,fv,ke,ut,vt,   qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)
+!$---acc routine worker
+implicit none
+
+complex, intent(in) :: tn(nlon,nhpp,nlev)
+complex, intent(in) :: fu(nlon,nhpp,nlev)
+complex, intent(in) :: fv(nlon,nhpp,nlev)
+complex, intent(in) :: ke(nlon,nhpp,nlev)
+complex, intent(in) :: ut(nlon,nhpp,nlev)
+complex, intent(in) :: vt(nlon,nhpp,nlev)
+
+complex, intent(out) :: d(nesp/2,nlev)
+complex, intent(out) :: t(nesp/2,nlev)
+complex, intent(out) :: z(nesp/2,nlev)
+
+real,    intent(in)  :: qq(ncsp,nhpp),qe(ncsp,nhpp),qc(ncsp,nhpp)
+complex, intent(in)  :: qx(ncsp,nhpp)
+integer, intent(in)  :: nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp
+
+integer :: l      ! Loop index for latitude
+integer :: m      ! Loop index for zonal wavenumber m
+integer :: w      ! Loop index for spectral mode
+integer :: e      ! End index for w
+integer :: jlev   ! Main loop along with Z/level
+
+complex :: fus,fua,fvs,fva,kes,kea,tns,tna,uts,uta,vts,vta
+
+
+d = (0.0,0.0) ! divergence
+t = (0.0,0.0) ! temperature
+z = (0.0,0.0) ! vorticity
+
+do jlev = 1, nlev
+   do l = 1 , nhpp  ! process pairs of Nort-South latitudes
+      w = 1
+      do m = 1 , ntp1
+         kes = ke(m,l,jlev) + ke(m+nlat,l,jlev) ; kea = ke(m,l,jlev) - ke(m+nlat,l,jlev)
+         fvs = fv(m,l,jlev) + fv(m+nlat,l,jlev) ; fva = fv(m,l,jlev) - fv(m+nlat,l,jlev)
+         fus = fu(m,l,jlev) + fu(m+nlat,l,jlev) ; fua = fu(m,l,jlev) - fu(m+nlat,l,jlev)
+         uts = ut(m,l,jlev) + ut(m+nlat,l,jlev) ; uta = ut(m,l,jlev) - ut(m+nlat,l,jlev)
+         vts = vt(m,l,jlev) + vt(m+nlat,l,jlev) ; vta = vt(m,l,jlev) - vt(m+nlat,l,jlev)
+         tns = tn(m,l,jlev) + tn(m+nlat,l,jlev) ; tna = tn(m,l,jlev) - tn(m+nlat,l,jlev)
+         e = w + ntp1 - m    ! vector of symmetric modes
+         d(w:e:2,jlev) = d(w:e:2,jlev) + qq(w:e:2,l) * kes - qe(w:e:2,l) * fva + qx(w:e:2,l) * fus
+         t(w:e:2,jlev) = t(w:e:2,jlev) + qe(w:e:2,l) * vta + qc(w:e:2,l) * tns - qx(w:e:2,l) * uts
+         z(w:e:2,jlev) = z(w:e:2,jlev) + qe(w:e:2,l) * fua + qx(w:e:2,l) * fvs
+         w = w + 1           ! vector of antisymmetric modes
+         d(w:e:2,jlev) = d(w:e:2,jlev) + qq(w:e:2,l) * kea - qe(w:e:2,l) * fvs + qx(w:e:2,l) * fua
+         t(w:e:2,jlev) = t(w:e:2,jlev) + qe(w:e:2,l) * vts + qc(w:e:2,l) * tna - qx(w:e:2,l) * uta
+         z(w:e:2,jlev) = z(w:e:2,jlev) + qe(w:e:2,l) * fus + qx(w:e:2,l) * fva
+         w = e + 1
+      enddo ! m
+   enddo ! l
+end do
+
+end subroutine mktend_acc
 
 end module dycore
