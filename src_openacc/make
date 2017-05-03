@@ -1,6 +1,0 @@
-#!/bin/tcsh
-
-pgfortran -Minline,reshape -fast -acc -Minfo=accel -ta=tesla:cc60 -c mod_dycore.f08
-
-#pgfortran -fast -acc -Minfo=accel -ta=tesla:cc20 -o pkugcm.x pkugcm.f90
-#rm -f pkugcm.f90

@@ -40,8 +40,6 @@ integer :: e ! Index for last wavenumber
 integer :: jlev
 complex :: fs,fa
 
-!$---acc kernels
-
 fc = (0.0,0.0)
 
 do jlev = 1, NLEV
@@ -57,8 +55,6 @@ do jlev = 1, NLEV
       enddo ! m
    enddo ! l
 end do
-
-!$---acc end kernels
 
 end subroutine sp2fc_nlev
 
@@ -155,8 +151,6 @@ integer :: n      ! Loop index for total wavenumber n
 integer :: w      ! Loop index for spectral mode
 integer :: jlev   ! main loop
 
-!$---acc kernels
-
 pu = 0.0
 pv = 0.0
 
@@ -245,8 +239,6 @@ do l = 1 , nhpp
    enddo ! m
 enddo ! l
 end do
-
-!$---acc end kernels
 
 end subroutine dv2uv_nlev
 
@@ -425,7 +417,6 @@ pure  subroutine fc2gp_acc(a,n,lot,base)
 !     ================
 
 pure  subroutine dfft2_acc(a,trigs,n)
-!$acc routine worker
       implicit none
       integer, intent(in) :: n
       real, dimension(n), intent(in) :: trigs
@@ -468,7 +459,6 @@ pure  subroutine dfft2_acc(a,trigs,n)
 !     ================
 
 pure  subroutine dfft3_acc(a,trigs,n)
-!$acc routine worker
       implicit none
       integer, intent(in) :: n
       real, dimension(n), intent(in) :: trigs
@@ -668,7 +658,6 @@ pure  subroutine dfft4_acc(a,trigs,n,lot,la)
 !     ================
 
 pure  subroutine dfft8_acc(a,c,n,lot)
-!$acc routine worker
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(in)  :: a
@@ -963,7 +952,6 @@ pure  subroutine ifft4_acc(c,trigs,n,lot,la)
 !     ================
 
 pure  subroutine ifft8_acc(a,c,n,lot)
-!$acc routine worker
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(in)  :: a
@@ -1026,7 +1014,6 @@ pure  subroutine ifft8_acc(a,c,n,lot)
 
 pure &
 subroutine mktend_acc(d,t,z,tn,fu,fv,ke,ut,vt,   qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)
-!$---acc routine worker
 implicit none
 
 complex, intent(in) :: tn(nlon,nhpp,nlev)

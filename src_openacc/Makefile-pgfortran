@@ -12,8 +12,8 @@
 
 # PGI pgfortran
 F90    = pgfortran
-FLAGS  = -fast #-acc -Minfo=accel,inline -ta=tesla:cc60 #-ta=multicore
-OTHERS = -Minfo=inline -Minline=calcgp,mktend_acc,sp2fc_nlev_acc,sp2fc_1lev_acc,fc2sp_1lev_acc,dv2uv_nlev_acc,sp2fcdmu_1lev_acc,gp2fc_acc,fc2gp_acc,dfft2_acc,dfft3_acc,dfft4_acc,dfft8_acc,ifft2_acc,ifft3_acc,ifft4_acc,ifft8_acc,reshape
+FLAGS  = -fast #-acc -Minfo=accel -ta=tesla:cc20 #-ta=multicore
+OTHERS = #-Minfo=inline -Minline=dfft2_acc,dfft3_acc,dfft4_acc,dfft8_acc,ifft2_acc,ifft3_acc,ifft4_acc,ifft8_acc,gp2fc_acc,fc2gp_acc,sp2fc_nlev_acc,sp2fc_1lev_acc,fc2sp_1lev_acc,dv2uv_nlev_acc,sp2fcdmu_1lev_acc,calcgp,mktend_acc,reshape#,levels:2
 
 # Intel ifort
 #F90    = ifort
@@ -34,7 +34,7 @@ OTHERS = -Minfo=inline -Minline=calcgp,mktend_acc,sp2fc_nlev_acc,sp2fc_1lev_acc,
 OBJ = pkugcm.o mod_fft.o mod_legsym.o mod_restart.o mod_io.o
 
 %.o : %.f08
-	${F90} $(FLAGS) $(OTHERS) -c $<
+	${F90} $(OTHERS) $(FLAGS) -c $<
 
 pkugcm.x:	$(OBJ)
 	${F90} $(FLAGS) $(OTHERS) -o pkugcm.x $(OBJ)

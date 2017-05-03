@@ -533,7 +533,6 @@ end subroutine dv2uv
 ! XW: for better performance in OpenACC
 pure &
 subroutine dv2uv_nlev(pd,pz,pu,pv,   qu,qv, nlon,nlat,nlev,nhpp,ntru,ntp1,ncsp,nesp, plavor)
-!$---acc routine worker
 implicit none
 
 real, intent(in ) :: pd(2,nesp/2,nlev)    ! Spherical harmonics  of divergence
@@ -654,7 +653,6 @@ end subroutine dv2uv_nlev
 
 pure &
 subroutine mktend(d,t,z,tn,fu,fv,ke,ut,vt,   qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)
-!$---acc routine worker
 implicit none
 
 complex, intent(in) :: tn(nlon,nhpp,nlev)

@@ -48,6 +48,7 @@ real   , allocatable :: qu(:,:)     ! P(m,n) / (n*(n+1)) * m                    
 real   , allocatable :: qv(:,:)     ! Q(m,n) / (n*(n+1))                        used in dv2uv
 complex, allocatable :: qx(:,:)     ! P(m,n) * gwd / cos2 * m                   used in mktend & uv2dv
 
+character(len=18) :: tmpstr
 
 !**************************************************************!
 ! The number of processes for processing on parallel machines  !
@@ -910,10 +911,11 @@ do jstep = 1 , nrun
    !***********************
    ! XW: pku output format
    !***********************
-!   if (mod(nstep,ndiag )==0) then
+   if (mod(nstep,ndiag )==0) then
+      call ntodat(nstep,tmpstr)
       !$---acc update self(gu)
-      print "(i10,2f10.4)", nstep, maxval(gu), minval(gu)
-!   end if
+      print "(a20,i10,2f10.4)", tmpstr, nstep, maxval(gu), minval(gu)
+   end if
 
    if (mod(nstep,nafter)==0 .and. noutput==2) then
       !$---acc update self(sp,sd,sz,st,gu,gv)
@@ -3006,7 +3008,6 @@ end subroutine master
 !     ====================
 
       subroutine gridpoint
- !     use dycore
       use pumamod, only: sd,st,sz,sp, sdt,stt,szt,spt,   &  ! 前4个是总体的最根本input; 后四个是最根本output
                          gd,gt,gz,gp,gpj,gu,gv,          &  ! 这些变量都会被update
                          gut,gvt,gke,gfu,gfv,            &  ! 这些变量都会被update
@@ -3038,10 +3039,12 @@ end subroutine master
 !$acc kernels
 
       ! ALL pure subroutines
-      call sp2fc_nlev_acc(st,gt,        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)                     ! temperature
-      call sp2fc_nlev_acc(sd,gd,        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)                     ! div
-      call sp2fc_nlev_acc(sz,gz,        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)                     ! vor
+      call sp2fc_nlev_acc(st(:,:),gt(:,:),        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)           ! temperature
+      call sp2fc_nlev_acc(sd(:,:),gd(:,:),        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)           ! div
+      call sp2fc_nlev_acc(sz(:,:),gz(:,:),        qi,nlon,nlat,nlev,nhpp,ntp1,ncsp)           ! vor
       call dv2uv_nlev_acc(sd,sz,gu,gv,  qu,qv,nlon,nlat,nlev,nhpp,ntru,ntp1,ncsp,nesp,plavor) ! div,vor -> UCOS(phi),VCOS(phi)
+
+!$acc end kernels
 
       !do jlev = 1 , NLEV
       !   call sp2fc(sd(:,jlev),gd(:,jlev))
@@ -3141,8 +3144,8 @@ end subroutine master
       !            qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)   ! 其它全是参数
 
       ! ALL pure subroutines
-      call mktend_acc(sdt,stt,szt,   gtn,gfu,gfv,gke,gut,gvt,         &  ! 前3个输出 后6个输入
-                  qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)   ! 其它全是参数
+      call mktend_acc(sdt,stt,szt,   gtn,gfu,gfv,gke,gut,gvt,         & ! 前3个输出 后6个输入
+                      qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,ncsp)       ! 其它全是参数
 
       ! 实际上未加 暂时注释掉
       !if (nruido > 0) call stepruido      ! 在运行中是否还要加随机扰动? 这里计算ruido数组
@@ -3192,8 +3195,6 @@ end subroutine master
 !            !endif
 !         !endif
 !      endif
-
-!$acc end kernels
 
       end subroutine gridpoint
 
@@ -4594,6 +4595,7 @@ end subroutine mastercpu_time
 
 
 !=========================================
+!XW(2017/5/3)
 !public ::  球谐变换
 !           sp2fc_nlev_acc
 !           sp2fc_1lev_acc
@@ -4611,20 +4613,17 @@ end subroutine mastercpu_time
 !           mktend_acc
 !=========================================            
 
-
-
-! sp2fc_nlev与上面的sp2fc的唯一区别是增加垂向循环
-! XW: for better performance in OpenACC
 pure &
-subroutine sp2fc_nlev_acc(sp,fc,   qi, nlon,nlat,nlev,nhpp,ntp1,ncsp) ! Spectral to Fourier
+subroutine sp2fc_nlev_acc(realsp,realfc,   qi, nlon,nlat,nlev,nhpp,ntp1,ncsp) ! Spectral to Fourier
 implicit none
-complex, dimension(ncsp,nlev),      intent(in ) :: sp   ! Coefficients of spherical harmonics
-complex, dimension(nlon,nhpp,nlev), intent(out) :: fc   ! Fourier coefficients
-
-real,    dimension(ncsp,nhpp),      intent(in ) :: qi
-integer,                            intent(in ) :: nlon,nlat,nlev,nhpp,ntp1,ncsp
+real,    dimension(ncsp*2,nlev),       intent(in ) :: realsp   ! Coefficients of spherical harmonics
+real,    dimension(nlon*2,nhpp,nlev),  intent(out) :: realfc   ! Fourier coefficients
+real,    dimension(ncsp,nhpp),         intent(in ) :: qi
+integer,                               intent(in ) :: nlon,nlat,nlev,nhpp,ntp1,ncsp
 
 ! local
+complex, dimension(ncsp,nlev)      :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp,nlev) :: fc   ! Fourier coefficients
 integer :: l ! Loop index for latitude
 integer :: m ! Loop index for zonal wavenumber m
 integer :: w ! Index for spectral mode
@@ -4632,7 +4631,10 @@ integer :: e ! Index for last wavenumber
 integer :: jlev
 complex :: fs,fa
 
-!$---acc kernels
+! convert real(ncsp*2) to complex(ncsp)
+do w = 1, ncsp
+   sp(w,:) = cmplx(realsp(w*2-1,:),realsp(w*2,:))
+end do
 
 fc = (0.0,0.0)
 
@@ -4650,27 +4652,37 @@ do jlev = 1, NLEV
    enddo ! l
 end do
 
-!$---acc end kernels
-
+! convert complex(nlon) to real(nlon*2)
+do m = 1, nlon
+   realfc(m*2-1,:,:)  = real(fc(m,:,:))
+   realfc(m*2  ,:,:)  = aimag(fc(m,:,:)) 
+end do
 end subroutine sp2fc_nlev_acc
 
 
 
-pure &
-subroutine sp2fc_1lev_acc(sp,fc,   qi,nlon,nlat,nhpp,ntp1,ncsp) ! Spectral to Fourier
-implicit none
-complex, dimension(ncsp),      intent(in ) :: sp   ! Coefficients of spherical harmonics
-complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
 
-real,    dimension(ncsp,nhpp), intent(in ) :: qi
-integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+pure &
+subroutine sp2fc_1lev_acc(realsp,realfc,   qi,nlon,nlat,nhpp,ntp1,ncsp) ! Spectral to Fourier
+implicit none
+real,    dimension(ncsp*2),      intent(in ) :: realsp   ! Coefficients of spherical harmonics
+real,    dimension(nlon*2,nhpp), intent(out) :: realfc   ! Fourier coefficients
+real,    dimension(ncsp,nhpp),   intent(in ) :: qi
+integer,                         intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
 
 ! local
+complex, dimension(ncsp)      :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp) :: fc   ! Fourier coefficients
 integer :: l ! Loop index for latitude
 integer :: m ! Loop index for zonal wavenumber m
 integer :: w ! Index for spectral mode
 integer :: e ! Index for last wavenumber
 complex :: fs,fa
+
+! convert real(ncsp*2) to complex(ncsp)
+do w = 1, ncsp
+   sp(w) = cmplx(realsp(w*2-1),realsp(w*2))
+end do
 
 fc(:,:) = (0.0,0.0)
 
@@ -4685,25 +4697,37 @@ do l = 1 , nhpp
     w = e + 1
   enddo ! m
 enddo ! l
+
+! convert complex(nlon) to real(nlon*2)
+do m = 1, nlon
+   realfc(m*2-1,:)  = real(fc(m,:))
+   realfc(m*2  ,:)  = aimag(fc(m,:)) 
+end do
 end subroutine sp2fc_1lev_acc
 
 
 
 
 pure &
-subroutine fc2sp_1lev_acc(fc,sp,   qc,nlon,nlat,nhpp,ntp1,ncsp)
+subroutine fc2sp_1lev_acc(realfc,realsp,   qc,nlon,nlat,nhpp,ntp1,ncsp)
 implicit none
-complex, dimension(nlon,nhpp), intent(in ) :: fc
-complex, dimension(ncsp),      intent(out) :: sp
-
-real,    dimension(ncsp,nhpp), intent(in ) :: qc
-integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+real, dimension(nlon*2,nhpp), intent(in)  :: realfc
+real, dimension(ncsp*2),      intent(out) :: realsp
+real, dimension(ncsp,nhpp),   intent(in ) :: qc
+integer,                      intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
 
 ! local
+complex, dimension(nlon,nhpp) :: fc
+complex, dimension(ncsp)      :: sp
 integer :: l ! Index for latitude
 integer :: m ! Index for zonal wavenumber
 integer :: w ! Index for spherical harmonic
 integer :: e ! Index for last wavenumber
+
+! convert real(nlon*2) to complex(nlon)
+do m = 1, nlon
+   fc(m,:)  = cmplx(realfc(m*2-1,:),realfc(m*2,:))
+end do
 
 sp(:) = (0.0,0.0)
 
@@ -4716,13 +4740,17 @@ do l = 1 , nhpp
       w = e + 1
    enddo ! m
 enddo ! l
+
+! convert complex(ncsp) to real(ncsp*2)
+do w = 1, ncsp
+   realsp(w*2-1)  = real(sp(w))
+   realsp(w*2  )  = aimag(sp(w)) 
+end do
 end subroutine fc2sp_1lev_acc
 
 
 
 
-! dv2uv_nlev与上面的dv2uv的唯一区别是增加垂向循环
-! XW: for better performance in OpenACC
 pure &
 subroutine dv2uv_nlev_acc(pd,pz,pu,pv,   qu,qv, nlon,nlat,nlev,nhpp,ntru,ntp1,ncsp,nesp, plavor)
 implicit none
@@ -4746,8 +4774,6 @@ integer :: m      ! Loop index for zonal wavenumber m
 integer :: n      ! Loop index for total wavenumber n
 integer :: w      ! Loop index for spectral mode
 integer :: jlev   ! main loop
-
-!$---acc kernels
 
 pu = 0.0
 pv = 0.0
@@ -4838,27 +4864,31 @@ do l = 1 , nhpp
 enddo ! l
 end do
 
-!$---acc end kernels
-
 end subroutine dv2uv_nlev_acc
 
 
 
 pure &
-subroutine sp2fcdmu_1lev_acc(sp,fc,   qj,nlon,nlat,nhpp,ntp1,ncsp) ! Spectral to Fourier d/dmu
+subroutine sp2fcdmu_1lev_acc(realsp,realfc,   qj,nlon,nlat,nhpp,ntp1,ncsp) ! Spectral to Fourier d/dmu
 implicit none
-complex, dimension(ncsp),      intent(in)  :: sp   ! Coefficients of spherical harmonics
-complex, dimension(nlon,nhpp), intent(out) :: fc   ! Fourier coefficients
-
-real,    dimension(ncsp,nhpp), intent(in ) :: qj
-integer,                       intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
+real,    dimension(ncsp*2),      intent(in)  :: realsp   ! Coefficients of spherical harmonics
+real,    dimension(nlon*2,nhpp), intent(out) :: realfc   ! Fourier coefficients
+real,    dimension(ncsp,nhpp),   intent(in ) :: qj
+integer,                         intent(in ) :: nlon,nlat,nhpp,ntp1,ncsp
 
 ! local
+complex, dimension(ncsp)      :: sp   ! Coefficients of spherical harmonics
+complex, dimension(nlon,nhpp) :: fc   ! Fourier coefficients
 integer :: l ! Loop index for latitude
 integer :: m ! Loop index for zonal wavenumber m
 integer :: w ! Index for spectral mode
 integer :: e ! Index for last wavenumber
 complex :: fs,fa
+
+! convert real(ncsp*2) to complex(ncsp)
+do w = 1, ncsp
+   sp(w) = cmplx(realsp(w*2-1),realsp(w*2))
+end do
 
 fc(:,:) = (0.0,0.0)
 
@@ -4873,6 +4903,12 @@ do l = 1 , nhpp
     w = e + 1
   enddo ! m
 enddo ! l
+
+! convert complex(nlon) to real(nlon*2)
+do m = 1, nlon
+   realfc(m*2-1,:)  = real(fc(m,:))
+   realfc(m*2  ,:)  = aimag(fc(m,:)) 
+end do
 end subroutine sp2fcdmu_1lev_acc
 
 
@@ -5017,7 +5053,6 @@ pure  subroutine fc2gp_acc(a,n,lot,base)
 !     ================
 
 pure  subroutine dfft2_acc(a,trigs,n)
-!$acc routine worker
       implicit none
       integer, intent(in) :: n
       real, dimension(n), intent(in) :: trigs
@@ -5060,7 +5095,6 @@ pure  subroutine dfft2_acc(a,trigs,n)
 !     ================
 
 pure  subroutine dfft3_acc(a,trigs,n)
-!$acc routine worker
       implicit none
       integer, intent(in) :: n
       real, dimension(n), intent(in) :: trigs
@@ -5260,7 +5294,6 @@ pure  subroutine dfft4_acc(a,trigs,n,lot,la)
 !     ================
 
 pure  subroutine dfft8_acc(a,c,n,lot)
-!$acc routine worker
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(in)  :: a
@@ -5555,7 +5588,6 @@ pure  subroutine ifft4_acc(c,trigs,n,lot,la)
 !     ================
 
 pure  subroutine ifft8_acc(a,c,n,lot)
-!$acc routine worker
       implicit none
       integer, intent(in) :: n, lot
       real, dimension(n,lot), intent(in)  :: a
@@ -5617,24 +5649,19 @@ pure  subroutine ifft8_acc(a,c,n,lot)
 ! XW(2017/5/1): 把单层改为对垂向循环
 
 pure &
-subroutine mktend_acc(d,t,z,tn,fu,fv,ke,ut,vt,   qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp)
-!$---acc routine worker
+subroutine mktend_acc(reald,realt,realz,   realtn,realfu,realfv,realke,realut,realvt,   qq,qe,qc,qx, nlon,nlat,nlev,nhpp,ntp1,ncsp)
 implicit none
 
-complex, intent(in) :: tn(nlon,nhpp,nlev)
-complex, intent(in) :: fu(nlon,nhpp,nlev)
-complex, intent(in) :: fv(nlon,nhpp,nlev)
-complex, intent(in) :: ke(nlon,nhpp,nlev)
-complex, intent(in) :: ut(nlon,nhpp,nlev)
-complex, intent(in) :: vt(nlon,nhpp,nlev)
-
-complex, intent(out) :: d(nesp/2,nlev)
-complex, intent(out) :: t(nesp/2,nlev)
-complex, intent(out) :: z(nesp/2,nlev)
+real, dimension(ncsp*2,nlev),      intent(out)  :: reald, realt, realz
+real, dimension(nlon*2,nhpp,nlev), intent(in)   :: realtn, realfu, realfv, realke, realut, realvt
 
 real,    intent(in)  :: qq(ncsp,nhpp),qe(ncsp,nhpp),qc(ncsp,nhpp)
 complex, intent(in)  :: qx(ncsp,nhpp)
-integer, intent(in)  :: nlon,nlat,nlev,nhpp,ntp1,nesp,ncsp
+integer, intent(in)  :: nlon,nlat,nlev,nhpp,ntp1,ncsp
+
+! local
+complex, dimension(ncsp,nlev)       :: d,t,z
+complex, dimension(nlon,nhpp,nlev)  :: tn,fu,fv,ke,ut,vt
 
 integer :: l      ! Loop index for latitude
 integer :: m      ! Loop index for zonal wavenumber m
@@ -5644,6 +5671,15 @@ integer :: jlev   ! Main loop along with Z/level
 
 complex :: fus,fua,fvs,fva,kes,kea,tns,tna,uts,uta,vts,vta
 
+! 把real转为complex
+do m = 1, nlon
+   tn(m,:,:) = cmplx( realtn(m*2-1,:,:), realtn(m*2,:,:) )
+   fu(m,:,:) = cmplx( realfu(m*2-1,:,:), realfu(m*2,:,:) )
+   fv(m,:,:) = cmplx( realfv(m*2-1,:,:), realfv(m*2,:,:) )
+   ke(m,:,:) = cmplx( realke(m*2-1,:,:), realke(m*2,:,:) )
+   ut(m,:,:) = cmplx( realut(m*2-1,:,:), realut(m*2,:,:) )
+   vt(m,:,:) = cmplx( realvt(m*2-1,:,:), realvt(m*2,:,:) )
+end do
 
 d = (0.0,0.0) ! divergence
 t = (0.0,0.0) ! temperature
@@ -5672,5 +5708,13 @@ do jlev = 1, nlev
    enddo ! l
 end do
 
+! 把complex转为real
+do w = 1, ncsp
+   reald(w*2-1,:) = real(d(w,:));   reald(w*2  ,:) = aimag(d(w,:))
+   realt(w*2-1,:) = real(t(w,:));   realt(w*2  ,:) = aimag(t(w,:))
+   realz(w*2-1,:) = real(z(w,:));   realz(w*2  ,:) = aimag(z(w,:))
+end do
+
 end subroutine mktend_acc
+
 
