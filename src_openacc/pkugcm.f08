@@ -506,7 +506,6 @@ call prolog                ! pass (complex) ! 初始化 ......
 call master                ! pass (complex) ! Key: gridpoint & spectral
 call epilog                ! pass (simple)  ! 终止化 关闭_output; 写restart; 显示时间信息
 
-print *, "STOP Normally!!!"
 end program puma_main
 
 
@@ -911,11 +910,11 @@ do jstep = 1 , nrun
    !***********************
    ! XW: pku output format
    !***********************
-   if (mod(nstep,ndiag )==0) then
+   !if (mod(nstep,ndiag )==0) then
       call ntodat(nstep,tmpstr)
       !$---acc update self(gu)
-      print "(a20,i10,2f10.4)", tmpstr, nstep, maxval(gu), minval(gu)
-   end if
+      print "(a20,i10,2f10.4)", tmpstr, nstep, maxval(gu), minval(gu)   ! print info: date/time, timestep, Umax, Umin
+   !end if
 
    if (mod(nstep,nafter)==0 .and. noutput==2) then
       !$---acc update self(sp,sd,sz,st,gu,gv)
@@ -1030,6 +1029,26 @@ end subroutine master
             write(nud,'("****************************************")')
          endif
       !endif
+
+write(nud,*) "                                                     "
+write(nud,*) "        _MMM_                                        "
+write(nud,*) "        (o o)                                        "
+write(nud,*) "+----oOO-{_}-OOo------------------------------------+"
+write(nud,*) "|                                                   |"
+write(nud,*) "|       THANKS FOR USING PEKING UNIVERSITY GCM      |"
+write(nud,*) "|   A Portable Code to Picture Earth's Atmosphere   |"
+write(nud,*) "|                                                   |"
+write(nud,*) "|              Special Thanks To                    |"
+write(nud,*) "|        PUMA of University of Hamburg              |"
+write(nud,*) "|                                                   |"
+write(nud,*) "|                   PKU Team                        |"
+write(nud,*) "|        X. Wen,     Z. Jia,    S. Wu               |"
+write(nud,*) "|        W. Liang,   S. Zhu,    S. Ma               |"
+write(nud,*) "|                                                   |"
+write(nud,*) "|        https://pkugcm.wordpress.com/              |"
+write(nud,*) "|                                                   |"
+write(nud,*) "+---------------------------------------------------+"
+
       end subroutine epilog
 
 
@@ -5716,5 +5735,4 @@ do w = 1, ncsp
 end do
 
 end subroutine mktend_acc
-
 

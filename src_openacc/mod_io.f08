@@ -208,7 +208,7 @@ subroutine io_close_output
       ! close binary data file if it is still open
       inquire(f,OPENED=ifopen)
       if (ifopen) then
-         print *, "closing ... fid:",f
+         print *, "closing ... ", f, vid(i), desc(i)
          close(f)
       end if
 
