@@ -499,12 +499,13 @@ use pumamod
 
 
 open(nud,file=puma_diag)   ! pass (simple)  ! opendiag简化而来
-call read_resolution       ! pass (simple)  ! 从命令行读取2个参数: NLAT, NLEV
+call read_resolution       ! pass (simple)  ! 读取2个关键维度参数 NLAT, NLEV
 call resolution            ! pass (simple)  ! 设置SP和GP的分辨率参数
 call allocate_arrays       ! pass (simple)  ! 分配SP和GP所有动态数组的内存空间
 call prolog                ! pass (complex) ! 初始化 ......
 call master                ! pass (complex) ! Key: gridpoint & spectral
 call epilog                ! pass (simple)  ! 终止化 关闭_output; 写restart; 显示时间信息
+close(nud)
 
 end program puma_main
 
@@ -515,13 +516,13 @@ end program puma_main
 subroutine read_resolution
    use pumamod
    implicit none
-
-   character (80) :: ylat
-   character (80) :: ylev
-   call get_command_argument(1,ylat)
-   call get_command_argument(2,ylev)
-   read(ylat,*) nlat
-   read(ylev,*) nlev
+   integer :: ios
+   namelist /pkugcm_dim/ nlev, nlat
+   open(13,file=puma_namelist,iostat=ios)
+   if (ios == 0) then
+      read (13,pkugcm_dim)
+      close(13)
+   end if
 end subroutine
 
 
@@ -734,8 +735,8 @@ integer  :: jlat              ! loop var
    !call ppp_interface  完全不必要
    call initpm
 
-print *, "LSELECT =", lselect       ! check if zonal-filter work after calling initpm
-print *, "LSPECSEL = ", lspecsel    ! check if sp-truncator work after calling initpm
+write(nud,*) "LSELECT =", lselect       ! check if zonal-filter work after calling initpm
+write(nud,*) "LSPECSEL = ", lspecsel    ! check if sp-truncator work after calling initpm
 
    call initsi
    call altlat(csq,NLAT) ! csq -> alternating grid
@@ -913,13 +914,13 @@ do jstep = 1 , nrun
    !if (mod(nstep,ndiag )==0) then
       call ntodat(nstep,tmpstr)
       !$---acc update self(gu)
-      print "(a20,i10,2f10.4)", tmpstr, nstep, maxval(gu), minval(gu)   ! print info: date/time, timestep, Umax, Umin
+      write(nud,"(a20,i10,2f10.4)") tmpstr, nstep, maxval(gu), minval(gu)   ! print info: date/time, timestep, Umax, Umin
    !end if
 
    if (mod(nstep,nafter)==0 .and. noutput==2) then
       !$---acc update self(sp,sd,sz,st,gu,gv)
       call io_write_output
-      print *, "writting ... outputs"
+      write(nud,*) "writting ... outputs"
    end if
 enddo
 

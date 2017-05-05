@@ -1,72 +1,56 @@
 #!/bin/tcsh
 
-setenv OMP_NUM_THREADS 4
 setenv CONVERT_NC 1           # 1 to convert netcdf; 0 off
 
-date
-
-# T21
-./pkugcm.x 32 10
-
-# T42
-#./pkugcm.x 64 10
-
-# T85
-#./pkugcm.x 128 10
-
-# T170
-#./pkugcm.x 256 10
-
-date
-
+./pkugcm.x
 
 if ($CONVERT_NC == 1) then
 
-setenv NLEV  10
-setenv NLAT  32
-setenv NTIME 360
+   setenv NLEV  10
+   setenv NLAT  32
+   setenv NTIME 360
 
-setenv VARID t
-setenv VARDS Temperature
-setenv VARUN K
-echo " "
-ncl bin2nc.ncl
+   setenv VARID t
+   setenv VARDS Temperature
+   setenv VARUN K
+   echo " "
+   ncl bin2nc.ncl
 
-setenv VARID u
-setenv VARDS "Zonal Wind"
-setenv VARUN m/s
-echo " "
-ncl bin2nc.ncl
+   setenv VARID u
+   setenv VARDS "Zonal Wind"
+   setenv VARUN m/s
+   echo " "
+   ncl bin2nc.ncl
 
-setenv VARID v
-setenv VARDS "Meridional Wind"
-setenv VARUN m/s
-echo " "
-ncl bin2nc.ncl
+   setenv VARID v
+   setenv VARDS "Meridional Wind"
+   setenv VARUN m/s
+   echo " "
+   ncl bin2nc.ncl
 
-setenv VARID z
-setenv VARDS "Geopotential Height"
-setenv VARUN gpm
-echo " "
-ncl bin2nc.ncl
+   setenv VARID z
+   setenv VARDS "Geopotential Height"
+   setenv VARUN gpm
+   echo " "
+   ncl bin2nc.ncl
 
-setenv VARID ps
-setenv VARDS "Surface Pressure"
-setenv VARUN hPa
-setenv NLEV  1
-echo " "
-ncl bin2nc.ncl
+   setenv VARID ps
+   setenv VARDS "Surface Pressure"
+   setenv VARUN hPa
+   setenv NLEV  1
+   echo " "
+   ncl bin2nc.ncl
 
-# MOVE RAW BINARY
-set outpath = output
-rm -rf $outpath
-mkdir $outpath
-mv output_*.bin $outpath
+   # MOVE RAW BINARY
+   set outpath = output
+   rm -rf $outpath
+   mkdir $outpath
+   mv output_*.bin $outpath
 
-# MOVE NETCDF
-set ncpath  = netcdf
-rm -rf $ncpath
-mkdir $ncpath
-mv output_*.nc $ncpath
+   # MOVE NETCDF
+   set ncpath  = netcdf
+   rm -rf $ncpath
+   mkdir $ncpath
+   mv output_*.nc $ncpath
 
 endif

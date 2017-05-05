@@ -1,27 +1,30 @@
- &pkugcm_nl
+&pkugcm_dim
+   NLAT = 32   ! T21=32, T42=64, T85=128, T170= 256
+   NLEV = 10
+/
+ 
+&pkugcm_nl
+   NOUTPUT =     2        ! 0=no output; 1=puma format; 2=pku format
+   TAC     =   360.0000
+   PAC     =     0.0000
+   NYEARS  =     1
+   NMONTHS =     0
+   KICK    =     1
+   MPSTEP  =     0
+   NDEL    =     6
+   NDHEAT  =     0
+   NDIAG   =     0
+   NEWSR   =     0
+   NWPD    =     1
+   DTROP   = 12000.0
+   DTTRP   =     2.0
+   ROTSPD  =     1.0
 
- NOUTPUT =     2        ! 0=no output; 1=puma format; 2=pku format
- TAC     =   360.0000
- PAC     =     0.0000
- NYEARS  =     1
- NMONTHS =     0
- KICK    =     1
- MPSTEP  =     0
- NDEL    =     6
- NDHEAT  =     0
- NDIAG   =     0
- NEWSR   =     0
- NWPD    =     1
- DTEP    =    60.0
- !DTNS    =   -70.0
- DTROP   = 12000.0
- DTTRP   =     2.0
- ROTSPD  =     1.0
- TGR     =   288.0
+   !nhelsua     = 1      ! HS94 experiment
+   !nsponge = 1
 
- !nhelsua     = 1      ! HS94 experiment
- !DTNS    =   0.0
- !nsponge = 1
-
- rotspd  = 0.1
- /end
+   TGR     =  288.0
+   dtEP    =  60.0
+   dtNS    = -70.0 
+   mpstep  =  60          ! time step (min, integer)
+/

@@ -151,6 +151,7 @@ end subroutine
 
 subroutine io_open_output
    use io
+   use pumamod, only: nud
    implicit none
 
    ! local
@@ -166,7 +167,7 @@ subroutine io_open_output
       fn = "output_"//trim(vid(i))//"_"//trim(yearstr)//".bin"
       if (won(i)) then
          open(unit=f, file=trim(fn), access="stream", form="unformatted", status="replace")
-         print *, "open new output: "//trim(fn)
+         write(nud,*) "open new output: "//trim(fn)
       end if
    end do
 end subroutine
@@ -191,7 +192,7 @@ end subroutine
 
 subroutine io_close_output
    use io
-   use pumamod, only: NLON,NLAT,NLEV
+   use pumamod, only: NLON,NLAT,NLEV,nud
    implicit none
 
    ! local
@@ -208,7 +209,7 @@ subroutine io_close_output
       ! close binary data file if it is still open
       inquire(f,OPENED=ifopen)
       if (ifopen) then
-         print *, "closing ... ", f, vid(i), desc(i)
+         write(nud,*) "closing ... ", f, vid(i), desc(i)
          close(f)
       end if
 
