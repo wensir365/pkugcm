@@ -3697,11 +3697,11 @@ pure  subroutine calcgp(gpm,   gtn,gvp,gfu,gfv,    & ! gpm进 gtn/gvp/gfu/gfv出
 !        fric = friction
 !        zampl = annual cycle
 
-      zampl = cos((real(nstep)-pac)*tac)
+      zampl = cos((real(nstep)-pac)*tac)              ! XW (2017-5-17): zampl --> cos(julian)
 
       if (nhelsua == 0 .or. nhelsua == 1) then
          do jlev=1,NLEV
-            zsrp(:)=srp1(:,jlev)+srp2(:,jlev)*zampl
+            zsrp(:)=srp1(:,jlev)+srp2(:,jlev)*zampl   ! XW (2017-5-17): T=Tann+Tcyc*cos(julian)
             sdt(:,jlev) =  sdp(:,jlev) * (sak(1:NSPP) - fric(jlev))
             szt(:,jlev) =  szp(:,jlev) * (sak(1:NSPP) - fric(jlev))
             stt(:,jlev) = (zsrp(:) - stp(:,jlev)) * damp(jlev) + stp(:,jlev) * sak(1:NSPP)
