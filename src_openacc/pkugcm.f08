@@ -517,10 +517,10 @@ subroutine read_resolution
    use pumamod
    implicit none
    integer :: ios
-   namelist /pkugcm_dim/ nlev, nlat
+   namelist /pkugcm_res/ nlev, nlat
    open(13,file=puma_namelist,iostat=ios)
    if (ios == 0) then
-      read (13,pkugcm_dim)
+      read (13, pkugcm_res)
       close(13)
    end if
 end subroutine
@@ -1144,6 +1144,12 @@ write(nud,*) "+---------------------------------------------------+"
 
 !     =================
 !     SUBROUTINE INITFD
+!     关键初始化过程 读入外置的关键5变量
+!        129   surface orographic height     ---> iread1   (lev=1)
+!        134   surface pressure              ---> iread2   (lev=1)
+!        121   restortion 1 (sr1) (Sea Cyc)  ---> iread3   (NLEV)
+!        122   restortian 2 (sr2) (Sea Cyc)  ---> iread4   (NLEV)
+!        123   radiative relax. time scale   ---> iread123 (NLEV)    scaling & non-dimensional
 !     =================
 
       subroutine initfd
@@ -1158,11 +1164,12 @@ write(nud,*) "+---------------------------------------------------+"
 
 !     Look for start data and read them if there
 
-      call read_surf(129,so,    1,iread1)
+      call read_surf(129,so,    1,iread1)    ! 读进来直接转谱空间
       call read_surf(134,sp,    1,iread2)
       call read_surf(121,sr1,NLEV,iread3)
       call read_surf(122,sr2,NLEV,iread4)
-      call read_vargp(123,NLEV,iread123)
+      call read_vargp(123,NLEV,iread123)     ! 读进来只做无量纲化处理
+
       !if (mypid == NROOT .and. iread123 == 0) then
       if (iread123 == 0) then
          if (nhelsua > 1) then
@@ -1170,7 +1177,8 @@ write(nud,*) "+---------------------------------------------------+"
             stop
          endif
       endif
-   
+  
+      ! external diabatic heating 
       if (ndiagp > 0) then  
          call read_vargp(121,NLEV,iread121)
          call read_vargp(122,NLEV,iread122)
@@ -1185,6 +1193,7 @@ write(nud,*) "+---------------------------------------------------+"
          !endif
       endif
 
+      ! external convective heating 
       if (nconv > 0) then
          call read_vargp(124,NLEV,iread124)
          call read_vargp(125,NLEV,iread125)
@@ -1198,6 +1207,7 @@ write(nud,*) "+---------------------------------------------------+"
       endif
 
       !if (mypid == NROOT) then
+         ! XW: 4个文件必须同时存在并使用才行
          if (iread1==0 .or. iread2==0 .or. iread3==0 .or. iread4==0) then
             call setzt ! setup for aqua-planet
          else
@@ -1246,7 +1256,7 @@ write(nud,*) "+---------------------------------------------------+"
 !     This workaround is necessaray, because allocatable arrays are
 !     not allowed in namelists for FORTRAN versions < F2003
 
-      integer, parameter :: MAXSELZW = 85
+      integer, parameter :: MAXSELZW = 170    ! XW: change from 21 to 42 to 85 to 170
       integer, parameter :: MAXSELSP = ((MAXSELZW+1) * (MAXSELZW+2)) / 2
       integer :: nselect(0:MAXSELZW) = 1      ! NSELECT can be used up tp T42
       integer :: nspecsel(MAXSELSP)  = 1      ! Default setting: all modes active
@@ -2281,6 +2291,10 @@ write(nud,*) "+---------------------------------------------------+"
             read (65,*) zgp(:,jlev)
          enddo
          close(65)
+
+         ! XW(May/17/2017): write min/max information
+         write(nud,*) "checking ...... [ Min --> Max ] =", minval(zgp), maxval(zgp)
+
          if (kcode == 134) then
             write(nud,*) "Converting Ps to LnPs"
             zscale   = log(100.0) - log(psurf) ! Input [hPa] / PSURF [Pa]
@@ -2339,6 +2353,10 @@ write(nud,*) "+---------------------------------------------------+"
             read (65,*) zgp(:,jlev)
          enddo
          close(65)
+
+         ! XW(May/17/2017): write min/max information
+         write(nud,*) "checking ...... [ Min --> Max ] =", minval(zgp), maxval(zgp)
+
          call reg2alt(zgp,klev)
       !endif ! (mypid == NROOT)
 

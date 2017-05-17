@@ -33,7 +33,7 @@ end module io
 
 subroutine io_write_output
    use io
-   use pumamod, only: sp,sd,sz,st,gu,gv,                 &
+   use pumamod, only: sp,sd,sz,st,gu,gv,so,              &
                       psurf,t0,ga,gascon,ww_scale,cv,ct, &
                       csq,sigma,sigmh,                   &
                       NLON,NLAT,NLEV,trigs,TAC
@@ -126,7 +126,11 @@ subroutine io_write_output
    sigmh2(1:NLEV) = sigmh
    sigmh2(0)      = 0.0
 
-   y3dh(:,:,NLEV) = 0.0    ! 这是地表位势 以后需要求精
+   call sp2fc(so,x2d)
+   call fc2gp(x2d,NLON,NLAT,trigs)
+   call alt2reg(x2d,1)
+
+   y3dh(:,:,NLEV) = x2d*(cv*cv)  ! 这是地表位势 以后需要check
    do jlev = NLEV-1, 1, -1
       y3dh (:,:,jlev)= y3dh(:,:,jlev+1)+x3d(:,:,jlev+1)*log(sigmh2(jlev+1)/sigmh2(jlev))
    end do

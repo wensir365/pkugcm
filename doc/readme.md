@@ -1,5 +1,13 @@
 # Change Log
 
+## 2017-May-17: Get read-in SRA files ready
+
+- Restart checked: after running a case, rename the file "pkugcm_status" to "pkugcm_restart" so that next time the model will automatically find this file and restart from this point. Five external forcing files (121,122,123,129,134) will be ignored if using restart file.
+- Move command arguments "NLAT NLEV" into namelist tag "pkugcm_res" in file "pkugcm_namelist"
+- Reading external forcing file checked: the model will automatically find 5 forcing files (121/122/123/129/134) in current directory and use them if this is not a restart run. Please note 129/134 are surface orography and pressure; 121/122 are prescribed temperature annual/seasonal parts; 123 is the dampling timescale which could be ignored at current stage. You may find those 5 files for T21/T42/T85/T170 aqua settings under "/tmp/04", as well as for a ideal box continent settings under "/tmp/05".
+- Output for "z" was modified to account for the orography's geopotential.
+
+
 ## 2017-May-2: Clean gridpoint ALL!
 
 Big clean for girdpoint! Purify ALL THE SUBPROGRAMS in gridpoint, including: [Independent] calcgp, mktend, [Spherical Harmonic] sp2fc_nlev, dv2uv_nlev, sp2fcdmu_1lev, fc2sp_1lev, sp2fcdmu_1lev, [FFT] fc2gp, gp2fc. So fat, we can say we are ready to OpenACC the gridpoint.

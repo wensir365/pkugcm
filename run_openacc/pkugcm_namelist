@@ -1,4 +1,4 @@
-&pkugcm_dim
+&pkugcm_res
    NLAT = 32   ! T21=32, T42=64, T85=128, T170= 256
    NLEV = 10
 /
@@ -20,11 +20,12 @@
    DTTRP   =     2.0
    ROTSPD  =     1.0
 
-   !nhelsua     = 1      ! HS94 experiment
+   !nhelsua     = 1       ! HS94 experiment
    !nsponge = 1
 
    TGR     =  288.0
    dtEP    =  60.0
    dtNS    = -70.0 
-   mpstep  =  60          ! time step (min, integer)
+   mpstep  = 60           ! time step (min, integer)
+   nwspini = 0            ! write output for init fields into "pkugcm_sp_init"
 /

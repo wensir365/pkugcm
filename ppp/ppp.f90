@@ -282,7 +282,7 @@ character (256) :: ppp_puma_txt        = "ppp-puma.txt"
       real :: tac   =       0. ! length of annual cycle [days] (0 = no cycle)
       real :: pac   =       0. ! phase of the annual cycle [days]
       real :: tgr   =   288.0  ! Ground Temperature in mean profile [K]
-      real :: oroano=     0.0  ! Orography anomaly in [gpm]
+      real :: oroano=     0.0  ! Orography anomaly in [gpm] XW: I guess unit should be [m] here!
       real :: tgrano=     0.0  ! Ground temperature anomaly in [K]
 !!
       real :: alrs  =   -0.0000! stratospheric lapse rate [K/m]

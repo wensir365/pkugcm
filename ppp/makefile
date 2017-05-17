@@ -14,10 +14,10 @@ OBJ=ppp.o legsym.o fftmod.o gaussmod.o
 ppp.x:	$(OBJ)
 	$(F90) -o ppp.x $(OPTS) $(OBJ)
 
+gaussmod.o:	./gaussmod.f90
+legsym.o:	./legsym.f90
+fftmod.o:	./fftmod.f90
 ppp.o:		./ppp.f90
-gaussmod.o:	../src/gaussmod.f90
-legsym.o:	../src/legsym.f90
-fftmod.o:	../src/fftmod.f90
 
 clean:
 	rm -f *.o *.mod
