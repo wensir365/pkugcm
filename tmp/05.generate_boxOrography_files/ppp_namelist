@@ -1,0 +1,34 @@
+ &ppp_nl
+ NOUTPUT =1
+ NGUI    =1
+ TAC     =   360.0000
+ PAC     =     0.0000
+ KICK    =     1
+ MPSTEP  =     0
+ NDEL    =     6
+ NDHEAT  =     0
+ NDIAG   =     0
+ NEWSR   =     0
+ NGUIDBG =     0
+ NSYNC   =     0
+ NWPD    =     1
+ DTEP    =    60.0
+ DTNS    =   -70.0
+ DTROP   = 12000.0
+ DTTRP   =     2.0
+ SYNCSTR =     0.0
+ ROTSPD  =     1.0
+ TGR     =   288.0
+ NSRV    =0
+ NORO    =2    ! I change from 1 (Read129File) to 0, to remove orography. 2=SinWave; 3=Gauss
+ OROANO  =1000.0 ! orographic default height (m)
+ LON1ORO =22
+ LON2ORO =42
+ LAT1ORO =18
+ LAT2ORO =28
+ TGRANO  =0
+ LON1TGR =1
+ LON2TGR =1
+ LAT1TGR =1
+ LAT2TGR =1
+ /END

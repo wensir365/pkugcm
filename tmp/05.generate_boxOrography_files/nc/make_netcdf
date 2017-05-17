@@ -1,0 +1,15 @@
+#!/bin/tcsh
+
+set res = N032
+#set res = N064
+
+foreach code (0129 0134 0121 0122 0123)
+	set fin = {$res}_surf_$code.sra
+	set fon = {$res}_surf_$code.nc
+	echo "----------------------------------"
+	echo " processing ... $fon "
+	echo "=================================="
+	rm -f $fon
+	cdo -f nc inputsrv $fon < ../$fin
+	echo "                                  "
+end
