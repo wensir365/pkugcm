@@ -1282,6 +1282,7 @@ write(nud,*) "+---------------------------------------------------+"
       , rotspd  , seed    , sid_day , sigmah  , sigmax  , dcsponge&
       , spstep  , t0k     , tauf    , taur    &
       , tac     , tauta   , tauts   , tgr     , ww_time
+      !--- XW add below variables
 
       open(13,file=puma_namelist,iostat=ios)
       if (ios == 0) then
@@ -2124,6 +2125,7 @@ write(nud,*) "+---------------------------------------------------+"
          stop
       end select
 
+      ! 写海平面气压的初始场 暂时可以关闭
       if (nwspini == 1) then
          open(71, file=puma_sp_init, form='unformatted')
          write(71) sp(:)
