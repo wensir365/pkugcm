@@ -1,0 +1,6 @@
+rm -f run
+gfortran -O3 -c mod_fft.f90
+gfortran -O3 -c main.f90
+gfortran -O3 -o run main.o mod_fft.o
+rm -f *.o *.mod
+./run
